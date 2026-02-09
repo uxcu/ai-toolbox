@@ -171,7 +171,8 @@ pub async fn wsl_add_file_mapping(
     let db = state.0.lock().await;
 
     let mapping_data = adapter::mapping_to_db_value(&mapping);
-    db.query(format!("UPSERT wsl_file_mapping:`{}` CONTENT $data", mapping.id))
+    db.query("UPSERT type::thing('wsl_file_mapping', $id) CONTENT $data")
+        .bind(("id", mapping.id.clone()))
         .bind(("data", mapping_data))
         .await
         .map_err(|e| format!("Failed to add file mapping: {}", e))?;
@@ -191,7 +192,8 @@ pub async fn wsl_update_file_mapping(
     let db = state.0.lock().await;
 
     let mapping_data = adapter::mapping_to_db_value(&mapping);
-    db.query(format!("UPSERT wsl_file_mapping:`{}` CONTENT $data", mapping.id))
+    db.query("UPSERT type::thing('wsl_file_mapping', $id) CONTENT $data")
+        .bind(("id", mapping.id.clone()))
         .bind(("data", mapping_data))
         .await
         .map_err(|e| format!("Failed to update file mapping: {}", e))?;
@@ -210,7 +212,8 @@ pub async fn wsl_delete_file_mapping(
 ) -> Result<(), String> {
     let db = state.0.lock().await;
 
-    db.query(format!("DELETE wsl_file_mapping:`{}`", id))
+    db.query("DELETE type::thing('wsl_file_mapping', $id)")
+        .bind(("id", id))
         .await
         .map_err(|e| format!("Failed to delete file mapping: {}", e))?;
 

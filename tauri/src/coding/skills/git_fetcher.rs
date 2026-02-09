@@ -26,6 +26,18 @@ fn get_proxy() -> Option<String> {
         .and_then(|guard| guard.clone())
 }
 
+fn redact_proxy_for_log(proxy: &str) -> String {
+    if let Some(pos) = proxy.find('@') {
+        let head = &proxy[..pos];
+        if head.contains("://") {
+            if let Some(scheme_pos) = head.find("://") {
+                return format!("{}://***:***@{}", &head[..scheme_pos], &proxy[pos + 1..]);
+            }
+        }
+    }
+    proxy.to_string()
+}
+
 /// Clone or pull a git repository
 pub fn clone_or_pull(repo_url: &str, dest: &Path, branch: Option<&str>) -> Result<String> {
     // Prefer the system `git` binary if available
@@ -136,7 +148,10 @@ fn git_cmd() -> Command {
 
     // Apply proxy settings if configured
     if let Some(proxy_url) = get_proxy() {
-        log::info!("[git_fetcher] using proxy: {}", proxy_url);
+        log::info!(
+            "[git_fetcher] using proxy: {}",
+            redact_proxy_for_log(&proxy_url)
+        );
         cmd.env("HTTP_PROXY", &proxy_url)
             .env("HTTPS_PROXY", &proxy_url)
             .env("http_proxy", &proxy_url)
@@ -164,11 +179,7 @@ fn run_cmd_with_timeout(
                 .wait_with_output()
                 .map(|out| String::from_utf8_lossy(&out.stderr).to_string())
                 .unwrap_or_default();
-            anyhow::bail!(
-                "GIT_TIMEOUT|{}|{}",
-                timeout.as_secs(),
-                stderr.trim()
-            );
+            anyhow::bail!("GIT_TIMEOUT|{}|{}", timeout.as_secs(), stderr.trim());
         }
 
         match child.try_wait() {

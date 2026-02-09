@@ -733,10 +733,25 @@ fn scan_skills_recursive(current_dir: &Path, base_dir: &Path, out: &mut Vec<GitS
 fn read_skill_name_from_dir(dir: &Path) -> Option<String> {
     let skill_md = dir.join("SKILL.md");
     if skill_md.exists() {
-        parse_skill_md(&skill_md).map(|(name, _)| name)
+        parse_skill_md(&skill_md)
+            .map(|(name, _)| name)
+            .and_then(|name| sanitize_skill_name(&name))
     } else {
         None
     }
+}
+
+fn sanitize_skill_name(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if trimmed.contains("..") || trimmed.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) {
+        return None;
+    }
+
+    Some(trimmed.to_string())
 }
 
 /// Recursively scan a directory for SKILL.md files and collect their paths.

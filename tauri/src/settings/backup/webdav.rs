@@ -2,7 +2,7 @@ use chrono::Local;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use tauri::Manager;
 use zip::ZipArchive;
 
@@ -394,6 +394,22 @@ fn get_home_dir() -> Result<PathBuf, String> {
         .map_err(|_| "Failed to get home directory".to_string())
 }
 
+fn safe_join_under(base: &Path, relative: &str) -> Result<PathBuf, String> {
+    let path = Path::new(relative);
+    if path.is_absolute() {
+        return Err(format!("Invalid backup entry path: {}", relative));
+    }
+
+    for component in path.components() {
+        match component {
+            Component::Normal(_) => {}
+            _ => return Err(format!("Unsafe backup entry path: {}", relative)),
+        }
+    }
+
+    Ok(base.join(path))
+}
+
 /// Restore database from WebDAV server
 #[tauri::command]
 pub async fn restore_from_webdav(
@@ -511,7 +527,7 @@ pub async fn restore_from_webdav(
                     continue;
                 }
 
-                let outpath = db_path.join(relative_path);
+                let outpath = safe_join_under(&db_path, relative_path)?;
 
                 if file_name.ends_with('/') {
                     fs::create_dir_all(&outpath)
@@ -543,7 +559,7 @@ pub async fn restore_from_webdav(
                         fs::create_dir_all(&auth_dir)
                             .map_err(|e| format!("Failed to create opencode auth directory: {}", e))?;
                     }
-                    let outpath = auth_dir.join("auth.json");
+                    let outpath = safe_join_under(&auth_dir, "auth.json")?;
                     let mut outfile = std::fs::File::create(&outpath)
                         .map_err(|e| format!("Failed to create file: {}", e))?;
                     std::io::copy(&mut file, &mut outfile)
@@ -555,7 +571,7 @@ pub async fn restore_from_webdav(
                             .map_err(|e| format!("Failed to create opencode config directory: {}", e))?;
                     }
 
-                    let outpath = opencode_dir.join(relative_path);
+                    let outpath = safe_join_under(&opencode_dir, relative_path)?;
 
                     // Just copy the file - MCP cmd /c normalization will be handled
                     // by mcp_sync_all during startup resync (triggered by .resync_required flag)
@@ -577,7 +593,7 @@ pub async fn restore_from_webdav(
                         .map_err(|e| format!("Failed to create claude config directory: {}", e))?;
                 }
 
-                let outpath = claude_dir.join(relative_path);
+                let outpath = safe_join_under(&claude_dir, relative_path)?;
 
                 // Note: Claude's MCP config is in ~/.claude.json, not ~/.claude/settings.json
                 // settings.json contains other settings without MCP, so just copy it directly
@@ -598,7 +614,7 @@ pub async fn restore_from_webdav(
                         .map_err(|e| format!("Failed to create codex config directory: {}", e))?;
                 }
 
-                let outpath = codex_dir.join(relative_path);
+                let outpath = safe_join_under(&codex_dir, relative_path)?;
 
                 // Just copy the file - MCP cmd /c normalization will be handled
                 // by mcp_sync_all during startup resync (triggered by .resync_required flag)
@@ -619,7 +635,7 @@ pub async fn restore_from_webdav(
                         .map_err(|e| format!("Failed to create skills directory: {}", e))?;
                 }
 
-                let outpath = skills_dir.join(relative_path);
+                let outpath = safe_join_under(&skills_dir, relative_path)?;
                 if let Some(parent) = outpath.parent() {
                     if !parent.exists() {
                         fs::create_dir_all(parent)

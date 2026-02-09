@@ -7,6 +7,20 @@ use super::adapter;
 use super::types::*;
 use tauri::Emitter;
 
+fn ensure_safe_record_id(id: &str) -> Result<&str, String> {
+    if id.is_empty() {
+        return Err("Invalid empty id".to_string());
+    }
+    if id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        Ok(id)
+    } else {
+        Err(format!("Invalid id format: {}", id))
+    }
+}
+
 // ============================================================================
 // Oh My OpenCode Config Commands
 // ============================================================================
@@ -334,6 +348,7 @@ pub async fn update_oh_my_opencode_config(
 
     // ID is required for update
     let config_id = input.id.ok_or_else(|| "ID is required for update".to_string())?;
+    let safe_config_id = ensure_safe_record_id(&config_id)?;
 
     // Check if config exists using type::thing
     let check_result: Result<Vec<Value>, _> = db
@@ -360,7 +375,7 @@ pub async fn update_oh_my_opencode_config(
     let existing_result: Result<Vec<serde_json::Value>, _> = db
         .query(format!(
             "SELECT created_at, type::bool(is_applied) as is_applied, sort_index FROM oh_my_opencode_config:`{}` LIMIT 1",
-            config_id
+            safe_config_id
         ))
         .await
         .map_err(|e| format!("Failed to query config: {}", e))?
@@ -418,7 +433,7 @@ pub async fn update_oh_my_opencode_config(
     let json_str = serde_json::to_string(&json_data)
         .map_err(|e| format!("Failed to serialize json_data: {}", e))?;
     
-    db.query(format!("UPDATE oh_my_opencode_config:`{}` CONTENT {}", config_id, json_str))
+    db.query(format!("UPDATE oh_my_opencode_config:`{}` CONTENT {}", safe_config_id, json_str))
         .await
         .map_err(|e| format!("Failed to update config: {}", e))?;
 
@@ -458,8 +473,9 @@ pub async fn delete_oh_my_opencode_config(
     id: String,
 ) -> Result<(), String> {
     let db = state.0.lock().await;
+    let safe_id = ensure_safe_record_id(&id)?;
 
-    db.query(format!("DELETE oh_my_opencode_config:`{}`", id))
+    db.query(format!("DELETE oh_my_opencode_config:`{}`", safe_id))
         .await
         .map_err(|e| format!("Failed to delete config: {}", e))?;
 
@@ -482,11 +498,12 @@ pub async fn apply_config_to_file_public(
     db: &surrealdb::Surreal<surrealdb::engine::local::Db>,
     config_id: &str,
 ) -> Result<(), String> {
+    let safe_config_id = ensure_safe_record_id(config_id)?;
     // Get the config from database using direct ID format (like ClaudeCode)
     let records_result: Result<Vec<Value>, _> = db
         .query(format!(
             "SELECT *, type::string(id) as id FROM oh_my_opencode_config:`{}` LIMIT 1",
-            config_id
+            safe_config_id
         ))
         .await
         .map_err(|e| format!("Failed to query config: {}", e))?
@@ -717,9 +734,10 @@ pub async fn reorder_oh_my_opencode_configs(
     let db = state.0.lock().await;
 
     for (index, id) in ids.iter().enumerate() {
+        let safe_id = ensure_safe_record_id(id)?;
         db.query(format!(
             "UPDATE oh_my_opencode_config:`{}` SET sort_index = $index",
-            id
+            safe_id
         ))
         .bind(("index", index as i32))
         .await
@@ -738,12 +756,13 @@ pub async fn toggle_oh_my_opencode_config_disabled(
     is_disabled: bool,
 ) -> Result<(), String> {
     let db = state.0.lock().await;
+    let safe_config_id = ensure_safe_record_id(&config_id)?;
 
     // Update is_disabled field in database
     let now = Local::now().to_rfc3339();
     db.query(format!(
         "UPDATE oh_my_opencode_config:`{}` SET is_disabled = $is_disabled, updated_at = $now",
-        config_id
+        safe_config_id
     ))
     .bind(("is_disabled", is_disabled))
     .bind(("now", now))
@@ -754,7 +773,7 @@ pub async fn toggle_oh_my_opencode_config_disabled(
     let records_result: Result<Vec<Value>, _> = db
         .query(format!(
             "SELECT *, type::string(id) as id FROM oh_my_opencode_config:`{}` LIMIT 1",
-            config_id
+            safe_config_id
         ))
         .await
         .map_err(|e| format!("Failed to query config: {}", e))?

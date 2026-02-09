@@ -268,7 +268,8 @@ pub async fn update_claude_provider(
     let json_data = adapter::to_db_value_provider(&content);
 
     // Use database id for update
-    db.query(format!("UPDATE claude_provider:`{}` CONTENT $data", id))
+    db.query("UPDATE type::thing('claude_provider', $id) CONTENT $data")
+        .bind(("id", id.clone()))
         .bind(("data", json_data))
         .await
         .map_err(|e| format!("Failed to update provider: {}", e))?;
@@ -311,7 +312,8 @@ pub async fn delete_claude_provider(
 ) -> Result<(), String> {
     let db = state.0.lock().await;
 
-    db.query(format!("DELETE claude_provider:`{}`", id))
+    db.query("DELETE type::thing('claude_provider', $id)")
+        .bind(("id", id))
         .await
         .map_err(|e| format!("Failed to delete claude provider: {}", e))?;
 
@@ -625,10 +627,8 @@ pub async fn toggle_claude_code_provider_disabled(
 
     // Update is_disabled field in database
     let now = Local::now().to_rfc3339();
-    db.query(format!(
-        "UPDATE claude_provider:`{}` SET is_disabled = $is_disabled, updated_at = $now",
-        provider_id
-    ))
+    db.query("UPDATE type::thing('claude_provider', $id) SET is_disabled = $is_disabled, updated_at = $now")
+    .bind(("id", provider_id.clone()))
     .bind(("is_disabled", is_disabled))
     .bind(("now", now))
     .await
