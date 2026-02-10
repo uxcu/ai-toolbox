@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use super::command_normalize;
 use super::format_configs::get_format_config;
-use super::types::{McpServer, McpSyncDetail, now_ms};
+use super::types::{now_ms, McpServer, McpSyncDetail};
 use crate::coding::tools::{resolve_mcp_config_path, McpFormatConfig, RuntimeTool};
 
 /// Sync an MCP server to a specific tool's config file
@@ -41,10 +41,7 @@ pub fn sync_server_to_tool(
 }
 
 /// Remove an MCP server from a specific tool's config file
-pub fn remove_server_from_tool(
-    server_name: &str,
-    tool: &RuntimeTool,
-) -> Result<(), String> {
+pub fn remove_server_from_tool(server_name: &str, tool: &RuntimeTool) -> Result<(), String> {
     let config_path = resolve_mcp_config_path(tool)
         .ok_or_else(|| format!("Tool {} does not support MCP", tool.key))?;
 
@@ -75,8 +72,7 @@ fn sync_server_to_json(
         if content.is_empty() {
             serde_json::json!({})
         } else {
-            json5::from_str(content)
-                .map_err(|e| format!("Failed to parse config file: {}", e))?
+            json5::from_str(content).map_err(|e| format!("Failed to parse config file: {}", e))?
         }
     } else {
         serde_json::json!({})
@@ -131,8 +127,8 @@ fn remove_server_from_json(
     if content.is_empty() {
         return Ok(()); // Empty file, nothing to remove
     }
-    let mut config: Value = json5::from_str(content)
-        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+    let mut config: Value =
+        json5::from_str(content).map_err(|e| format!("Failed to parse config file: {}", e))?;
 
     // Get the MCP servers field
     if let Some(mcp_servers) = config.get_mut(field) {
@@ -171,7 +167,8 @@ fn sync_server_to_toml(
         if content.trim().is_empty() {
             toml_edit::DocumentMut::new()
         } else {
-            content.parse::<toml_edit::DocumentMut>()
+            content
+                .parse::<toml_edit::DocumentMut>()
                 .map_err(|e| format!("Failed to parse TOML config: {}", e))?
         }
     } else {
@@ -236,15 +233,21 @@ fn build_toml_edit_server_config(server: &McpServer) -> Result<toml_edit::Table,
 
     match server.server_type.as_str() {
         "stdio" => {
-            let command = server.server_config
+            let command = server
+                .server_config
                 .get("command")
                 .and_then(|v| v.as_str())
                 .ok_or("stdio server requires 'command' field")?;
 
-            let args: Vec<String> = server.server_config
+            let args: Vec<String> = server
+                .server_config
                 .get("args")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default();
 
             // Windows: wrap cmd /c if needed
@@ -257,10 +260,19 @@ fn build_toml_edit_server_config(server: &McpServer) -> Result<toml_edit::Table,
                     "args": args
                 });
                 let wrapped = command_normalize::wrap_cmd_c(&temp_config);
-                let cmd = wrapped.get("command").and_then(|v| v.as_str()).unwrap_or(command).to_string();
-                let a: Vec<String> = wrapped.get("args")
+                let cmd = wrapped
+                    .get("command")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(command)
+                    .to_string();
+                let a: Vec<String> = wrapped
+                    .get("args")
                     .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or(args.clone());
                 (cmd, a)
             };
@@ -295,17 +307,25 @@ fn build_toml_edit_server_config(server: &McpServer) -> Result<toml_edit::Table,
             }
         }
         "http" | "sse" => {
-            let url = server.server_config
+            let url = server
+                .server_config
                 .get("url")
                 .and_then(|v| v.as_str())
-                .ok_or(format!("{} server requires 'url' field", server.server_type))?;
+                .ok_or(format!(
+                    "{} server requires 'url' field",
+                    server.server_type
+                ))?;
 
             // Insert in order: type -> url -> http_headers
             t["type"] = toml_edit::value(&server.server_type);
             t["url"] = toml_edit::value(url);
 
             // Build http_headers as sub-table (Codex uses http_headers, not headers)
-            if let Some(headers) = server.server_config.get("headers").and_then(|v| v.as_object()) {
+            if let Some(headers) = server
+                .server_config
+                .get("headers")
+                .and_then(|v| v.as_object())
+            {
                 let mut h_tbl = Table::new();
                 for (k, v) in headers.iter() {
                     if let Some(s) = v.as_str() {
@@ -325,7 +345,10 @@ fn build_toml_edit_server_config(server: &McpServer) -> Result<toml_edit::Table,
 
 /// Build JSON server configuration from McpServer
 /// Applies format conversion if format_config is provided
-fn build_json_server_config(server: &McpServer, format_config: Option<&McpFormatConfig>) -> Result<Value, String> {
+fn build_json_server_config(
+    server: &McpServer,
+    format_config: Option<&McpFormatConfig>,
+) -> Result<Value, String> {
     match server.server_type.as_str() {
         "stdio" => build_stdio_config(server, format_config),
         "http" | "sse" => build_http_config(server, format_config),
@@ -334,16 +357,25 @@ fn build_json_server_config(server: &McpServer, format_config: Option<&McpFormat
 }
 
 /// Build stdio server configuration
-fn build_stdio_config(server: &McpServer, format_config: Option<&McpFormatConfig>) -> Result<Value, String> {
-    let command = server.server_config
+fn build_stdio_config(
+    server: &McpServer,
+    format_config: Option<&McpFormatConfig>,
+) -> Result<Value, String> {
+    let command = server
+        .server_config
         .get("command")
         .and_then(|v| v.as_str())
         .ok_or("stdio server requires 'command' field")?;
 
-    let args: Vec<String> = server.server_config
+    let args: Vec<String> = server
+        .server_config
         .get("args")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
 
     let env = server.server_config.get("env").cloned();
@@ -375,10 +407,19 @@ fn build_stdio_config(server: &McpServer, format_config: Option<&McpFormatConfig
             let temp_result = command_normalize::wrap_cmd_c(&temp_result);
 
             // Extract wrapped command and args
-            let final_command = temp_result.get("command").and_then(|v| v.as_str()).unwrap_or(command);
-            let final_args = temp_result.get("args").cloned().unwrap_or(Value::Array(vec![]));
+            let final_command = temp_result
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or(command);
+            let final_args = temp_result
+                .get("args")
+                .cloned()
+                .unwrap_or(Value::Array(vec![]));
 
-            result.insert("command".to_string(), Value::String(final_command.to_string()));
+            result.insert(
+                "command".to_string(),
+                Value::String(final_command.to_string()),
+            );
             result.insert("args".to_string(), final_args);
         }
 
@@ -417,11 +458,18 @@ fn build_stdio_config(server: &McpServer, format_config: Option<&McpFormatConfig
 }
 
 /// Build HTTP/SSE server configuration
-fn build_http_config(server: &McpServer, format_config: Option<&McpFormatConfig>) -> Result<Value, String> {
-    let url = server.server_config
+fn build_http_config(
+    server: &McpServer,
+    format_config: Option<&McpFormatConfig>,
+) -> Result<Value, String> {
+    let url = server
+        .server_config
         .get("url")
         .and_then(|v| v.as_str())
-        .ok_or(format!("{} server requires 'url' field", server.server_type))?;
+        .ok_or(format!(
+            "{} server requires 'url' field",
+            server.server_type
+        ))?;
 
     let headers = server.server_config.get("headers").cloned();
 
@@ -435,7 +483,12 @@ fn build_http_config(server: &McpServer, format_config: Option<&McpFormatConfig>
         result.insert("url".to_string(), Value::String(url.to_string()));
 
         if let Some(headers_val) = headers {
-            if headers_val.is_object() && !headers_val.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+            if headers_val.is_object()
+                && !headers_val
+                    .as_object()
+                    .map(|o| o.is_empty())
+                    .unwrap_or(true)
+            {
                 result.insert("headers".to_string(), headers_val);
             }
         }
@@ -454,7 +507,12 @@ fn build_http_config(server: &McpServer, format_config: Option<&McpFormatConfig>
         });
 
         if let Some(headers_val) = headers {
-            if headers_val.is_object() && !headers_val.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+            if headers_val.is_object()
+                && !headers_val
+                    .as_object()
+                    .map(|o| o.is_empty())
+                    .unwrap_or(true)
+            {
                 result["headers"] = headers_val;
             }
         }
@@ -496,8 +554,8 @@ fn import_servers_from_json(
     if content.is_empty() {
         return Ok(vec![]);
     }
-    let config: Value = json5::from_str(content)
-        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+    let config: Value =
+        json5::from_str(content).map_err(|e| format!("Failed to parse config file: {}", e))?;
 
     parse_mcp_servers_from_value(&config, field, format_config)
 }
@@ -585,7 +643,8 @@ fn parse_server_with_format_config(
         } else {
             // Standard format: command is string, args is separate
             let cmd = command_val.as_str()?.to_string();
-            let args = server_config.get("args")
+            let args = server_config
+                .get("args")
                 .and_then(|v| v.as_array())
                 .map(|arr| arr.clone())
                 .unwrap_or_default();
@@ -640,11 +699,7 @@ fn parse_server_with_format_config(
 
 /// Parse standard server config (no format conversion needed)
 /// Used by Claude Code, Gemini CLI, etc.
-fn parse_standard_server_config(
-    name: &str,
-    server_config: &Value,
-    now: i64,
-) -> Option<McpServer> {
+fn parse_standard_server_config(name: &str, server_config: &Value, now: i64) -> Option<McpServer> {
     // Detect server type: check explicit "type" field first, fall back to field presence
     let server_type = server_config
         .get("type")
@@ -689,7 +744,8 @@ fn import_servers_from_toml(config_path: &PathBuf, field: &str) -> Result<Vec<Mc
     if content_trimmed.is_empty() {
         return Ok(vec![]);
     }
-    let config: toml::Table = content_trimmed.parse()
+    let config: toml::Table = content_trimmed
+        .parse()
         .map_err(|e| format!("Failed to parse TOML config: {}", e))?;
 
     let Some(toml::Value::Table(servers_table)) = config.get(field) else {
@@ -727,7 +783,8 @@ fn import_servers_from_toml(config_path: &PathBuf, field: &str) -> Result<Vec<Mc
                     json_config.insert("command".into(), Value::String(cmd.to_string()));
                 }
                 if let Some(args) = config_table.get("args").and_then(|v| v.as_array()) {
-                    let arr: Vec<Value> = args.iter()
+                    let arr: Vec<Value> = args
+                        .iter()
                         .filter_map(|x| x.as_str().map(|s| Value::String(s.to_string())))
                         .collect();
                     if !arr.is_empty() {
@@ -751,7 +808,8 @@ fn import_servers_from_toml(config_path: &PathBuf, field: &str) -> Result<Vec<Mc
                     json_config.insert("url".into(), Value::String(url.to_string()));
                 }
                 // Read from http_headers (Codex format) or headers (legacy), prefer http_headers
-                let headers_tbl = config_table.get("http_headers")
+                let headers_tbl = config_table
+                    .get("http_headers")
                     .and_then(|v| v.as_table())
                     .or_else(|| config_table.get("headers").and_then(|v| v.as_table()));
                 if let Some(h_tbl) = headers_tbl {

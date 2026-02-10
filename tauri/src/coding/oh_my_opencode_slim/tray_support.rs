@@ -53,7 +53,10 @@ pub async fn get_oh_my_opencode_slim_tray_data<R: Runtime>(
                 if let (Some(id), Some(name), Some(is_applied), sort_index) = (
                     record.get("id").and_then(|v| v.as_str()),
                     record.get("name").and_then(|v| v.as_str()),
-                    record.get("is_applied").or_else(|| record.get("isApplied")).and_then(|v| v.as_bool()),
+                    record
+                        .get("is_applied")
+                        .or_else(|| record.get("isApplied"))
+                        .and_then(|v| v.as_bool()),
                     record
                         .get("sort_index")
                         .or_else(|| record.get("sortIndex"))
@@ -120,7 +123,9 @@ pub async fn is_enabled_for_tray<R: Runtime>(app: &AppHandle<R>) -> bool {
 
     // Check if "oh-my-opencode-slim" is in the plugin list
     if let Some(plugins) = &config.plugin {
-        plugins.iter().any(|p: &String| p.starts_with("oh-my-opencode-slim"))
+        plugins
+            .iter()
+            .any(|p: &String| p.starts_with("oh-my-opencode-slim"))
     } else {
         false
     }

@@ -58,10 +58,7 @@ pub async fn client(db_state: &DbState) -> Result<Client, String> {
 /// ```rust
 /// let client = http_client::client_with_timeout(&state, 60).await?;
 /// ```
-pub async fn client_with_timeout(
-    db_state: &DbState,
-    timeout_secs: u64,
-) -> Result<Client, String> {
+pub async fn client_with_timeout(db_state: &DbState, timeout_secs: u64) -> Result<Client, String> {
     let proxy_url = get_proxy_from_settings(db_state).await?;
     build_client(&proxy_url, timeout_secs)
 }
@@ -198,8 +195,8 @@ fn build_proxy(url: &str) -> Result<Option<Proxy>, String> {
     let normalized_url = normalize_proxy_url(url);
 
     // Use Proxy::all() to apply proxy to all protocols (HTTP and HTTPS)
-    let proxy = Proxy::all(&normalized_url)
-        .map_err(|e| format!("Invalid proxy URL '{}': {}", url, e))?;
+    let proxy =
+        Proxy::all(&normalized_url).map_err(|e| format!("Invalid proxy URL '{}': {}", url, e))?;
 
     Ok(Some(proxy))
 }

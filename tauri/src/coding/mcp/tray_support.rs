@@ -35,7 +35,9 @@ pub struct TrayMcpToolItem {
 /// Check if MCP section should be shown in tray
 pub async fn is_mcp_enabled_for_tray<R: Runtime>(app: &AppHandle<R>) -> bool {
     let state = app.state::<DbState>();
-    let prefs = mcp_store::get_mcp_preferences(&state).await.unwrap_or_default();
+    let prefs = mcp_store::get_mcp_preferences(&state)
+        .await
+        .unwrap_or_default();
     prefs.show_in_tray
 }
 
@@ -47,7 +49,9 @@ pub async fn get_mcp_tray_data<R: Runtime>(app: &AppHandle<R>) -> Result<TrayMcp
     let servers = mcp_store::get_mcp_servers(&state).await?;
 
     // Get custom tools for MCP tool list
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let mcp_tools = get_mcp_runtime_tools(&custom_tools);
 
     let mut items = Vec::new();
@@ -96,7 +100,9 @@ pub async fn apply_mcp_tool_toggle<R: Runtime>(
         .await?
         .ok_or_else(|| format!("MCP server not found: {}", server_id))?;
 
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let tool = crate::coding::tools::runtime_tool_by_key(tool_key, &custom_tools)
         .ok_or_else(|| format!("Tool not found: {}", tool_key))?;
 

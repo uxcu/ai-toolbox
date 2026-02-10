@@ -1,6 +1,9 @@
-use serde_json::{json, Value};
-use super::types::{OhMyOpenCodeSlimConfig, OhMyOpenCodeSlimConfigContent, OhMyOpenCodeSlimGlobalConfig, OhMyOpenCodeSlimGlobalConfigContent};
+use super::types::{
+    OhMyOpenCodeSlimConfig, OhMyOpenCodeSlimConfigContent, OhMyOpenCodeSlimGlobalConfig,
+    OhMyOpenCodeSlimGlobalConfigContent,
+};
 use crate::coding::db_id::db_extract_id;
+use serde_json::{json, Value};
 
 // ============================================================================
 // Helper Functions
@@ -85,9 +88,7 @@ pub fn from_db_value(value: Value) -> OhMyOpenCodeSlimConfig {
         name: get_str_compat(&value, "name", "name", "Unnamed Config"),
         is_applied,
         is_disabled,
-        agents: value
-            .get("agents")
-            .cloned(),
+        agents: value.get("agents").cloned(),
         other_fields: value
             .get("other_fields")
             .or_else(|| value.get("otherFields"))
@@ -101,7 +102,10 @@ pub fn from_db_value(value: Value) -> OhMyOpenCodeSlimConfig {
 /// Convert OhMyOpenCodeSlimConfigContent to database Value
 pub fn to_db_value(content: &OhMyOpenCodeSlimConfigContent) -> Value {
     serde_json::to_value(content).unwrap_or_else(|e| {
-        eprintln!("Failed to serialize oh-my-opencode-slim config content: {}", e);
+        eprintln!(
+            "Failed to serialize oh-my-opencode-slim config content: {}",
+            e
+        );
         json!({})
     })
 }
@@ -160,9 +164,7 @@ pub fn global_config_from_db_value(value: Value) -> OhMyOpenCodeSlimGlobalConfig
             .or_else(|| value.get("disabledHooks"))
             .and_then(|v| safe_to_string_array(v)),
         lsp: value.get("lsp").cloned(),
-        experimental: value
-            .get("experimental")
-            .cloned(),
+        experimental: value.get("experimental").cloned(),
         other_fields: value
             .get("other_fields")
             .or_else(|| value.get("otherFields"))
@@ -174,7 +176,10 @@ pub fn global_config_from_db_value(value: Value) -> OhMyOpenCodeSlimGlobalConfig
 /// Convert OhMyOpenCodeSlimGlobalConfigContent to database Value
 pub fn global_config_to_db_value(content: &OhMyOpenCodeSlimGlobalConfigContent) -> Value {
     serde_json::to_value(content).unwrap_or_else(|e| {
-        eprintln!("Failed to serialize oh-my-opencode-slim global config content: {}", e);
+        eprintln!(
+            "Failed to serialize oh-my-opencode-slim global config content: {}",
+            e
+        );
         json!({})
     })
 }

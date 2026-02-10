@@ -87,7 +87,10 @@ pub fn migrate_opencode_skill_dir(distro: Option<&str>) {
             } else {
                 // Both exist, remove old
                 if let Err(e) = std::fs::remove_dir_all(&old_local) {
-                    log::warn!("Failed to remove legacy local opencode skill directory: {}", e);
+                    log::warn!(
+                        "Failed to remove legacy local opencode skill directory: {}",
+                        e
+                    );
                 } else {
                     info!("Removed legacy local OpenCode skill directory (skills already exists)");
                 }
@@ -126,8 +129,14 @@ pub fn migrate_opencode_skill_dir(distro: Option<&str>) {
     if let Ok(output) = wsl_cmd.output() {
         let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
         match result.as_str() {
-            "renamed" => info!("WSL: migrated OpenCode skill -> skills directory in {}", distro),
-            "removed" => info!("WSL: removed legacy OpenCode skill directory in {} (skills already exists)", distro),
+            "renamed" => info!(
+                "WSL: migrated OpenCode skill -> skills directory in {}",
+                distro
+            ),
+            "removed" => info!(
+                "WSL: removed legacy OpenCode skill directory in {} (skills already exists)",
+                distro
+            ),
             _ => {}
         }
     }
@@ -138,7 +147,10 @@ pub async fn sync_skills_to_wsl(state: &DbState, app: AppHandle) -> Result<(), S
     let config = get_wsl_config(state).await?;
 
     if !config.enabled || !config.sync_skills {
-        info!("Skills WSL sync skipped: enabled={}, sync_skills={}", config.enabled, config.sync_skills);
+        info!(
+            "Skills WSL sync skipped: enabled={}, sync_skills={}",
+            config.enabled, config.sync_skills
+        );
         return Ok(());
     }
 
@@ -165,13 +177,16 @@ pub async fn sync_skills_to_wsl(state: &DbState, app: AppHandle) -> Result<(), S
     );
 
     // Emit initial progress
-    let _ = app.emit("wsl-sync-progress", SyncProgress {
-        phase: "skills".to_string(),
-        current_item: "准备中...".to_string(),
-        current: 0,
-        total: total_skills,
-        message: format!("Skills 同步: 0/{}", total_skills),
-    });
+    let _ = app.emit(
+        "wsl-sync-progress",
+        SyncProgress {
+            phase: "skills".to_string(),
+            current_item: "准备中...".to_string(),
+            current: 0,
+            total: total_skills,
+            message: format!("Skills 同步: 0/{}", total_skills),
+        },
+    );
 
     // 1. Get existing skills in WSL central repo
     let existing_wsl_skills = list_wsl_dir(&distro, WSL_CENTRAL_DIR).unwrap_or_default();
@@ -199,19 +214,29 @@ pub async fn sync_skills_to_wsl(state: &DbState, app: AppHandle) -> Result<(), S
     let mut synced_count = 0;
     for (idx, skill) in skills.iter().enumerate() {
         let current_idx = (idx + 1) as u32;
-        
+
         // Emit progress for each skill
-        let _ = app.emit("wsl-sync-progress", SyncProgress {
-            phase: "skills".to_string(),
-            current_item: skill.name.clone(),
-            current: current_idx,
-            total: total_skills,
-            message: format!("Skills 同步: {}/{} - {}", current_idx, total_skills, skill.name),
-        });
+        let _ = app.emit(
+            "wsl-sync-progress",
+            SyncProgress {
+                phase: "skills".to_string(),
+                current_item: skill.name.clone(),
+                current: current_idx,
+                total: total_skills,
+                message: format!(
+                    "Skills 同步: {}/{} - {}",
+                    current_idx, total_skills, skill.name
+                ),
+            },
+        );
 
         let source = resolve_skill_central_path(&skill.central_path, &central_dir);
         if !source.exists() {
-            info!("Skills WSL sync: skip '{}', source not found: {}", skill.name, source.display());
+            info!(
+                "Skills WSL sync: skip '{}', source not found: {}",
+                skill.name,
+                source.display()
+            );
             continue;
         }
 
@@ -230,7 +255,10 @@ pub async fn sync_skills_to_wsl(state: &DbState, app: AppHandle) -> Result<(), S
         if needs_update {
             // Convert Windows path to WSL-accessible path and sync
             let source_str = source.to_string_lossy().to_string();
-            info!("Skills WSL sync: syncing '{}' from {} to {}", skill.name, source_str, wsl_target);
+            info!(
+                "Skills WSL sync: syncing '{}' from {} to {}",
+                skill.name, source_str, wsl_target
+            );
             match sync_directory(&source_str, &wsl_target, &distro) {
                 Ok(_) => {
                     // Save hash for future comparison
@@ -238,7 +266,10 @@ pub async fn sync_skills_to_wsl(state: &DbState, app: AppHandle) -> Result<(), S
                     synced_count += 1;
                 }
                 Err(e) => {
-                    return Err(format!("Skills WSL sync failed for '{}': {}", skill.name, e));
+                    return Err(format!(
+                        "Skills WSL sync failed for '{}': {}",
+                        skill.name, e
+                    ));
                 }
             }
         }
@@ -254,8 +285,7 @@ pub async fn sync_skills_to_wsl(state: &DbState, app: AppHandle) -> Result<(), S
         }
 
         // Remove symlinks for tools that are no longer enabled
-        let enabled_set: HashSet<&str> =
-            skill.enabled_tools.iter().map(|s| s.as_str()).collect();
+        let enabled_set: HashSet<&str> = skill.enabled_tools.iter().map(|s| s.as_str()).collect();
         for tool_key in get_all_skill_tool_keys() {
             if !enabled_set.contains(tool_key) {
                 if let Some(wsl_skills_dir) = get_wsl_tool_skills_dir(tool_key) {

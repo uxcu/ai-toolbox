@@ -36,7 +36,8 @@ pub async fn get_git_cache_cleanup_days(state: &crate::DbState) -> i64 {
             }
         }
         Ok(DEFAULT_GIT_CACHE_CLEANUP_DAYS)
-    }.await;
+    }
+    .await;
 
     result.unwrap_or(DEFAULT_GIT_CACHE_CLEANUP_DAYS)
 }
@@ -53,11 +54,13 @@ pub async fn set_git_cache_cleanup_days(state: &crate::DbState, days: i64) -> Re
     let db = state.0.lock().await;
     let now = super::types::now_ms();
 
-    db.query("UPSERT skill_settings:`skills` MERGE { git_cache_cleanup_days: $days, updated_at: $now }")
-        .bind(("days", days))
-        .bind(("now", now))
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to save setting: {}", e))?;
+    db.query(
+        "UPSERT skill_settings:`skills` MERGE { git_cache_cleanup_days: $days, updated_at: $now }",
+    )
+    .bind(("days", days))
+    .bind(("now", now))
+    .await
+    .map_err(|e| anyhow::anyhow!("failed to save setting: {}", e))?;
 
     Ok(days)
 }
@@ -79,7 +82,8 @@ pub async fn get_git_cache_ttl_secs(state: &crate::DbState) -> i64 {
             }
         }
         Ok(DEFAULT_GIT_CACHE_TTL_SECS)
-    }.await;
+    }
+    .await;
 
     result.unwrap_or(DEFAULT_GIT_CACHE_TTL_SECS)
 }

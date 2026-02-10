@@ -340,7 +340,10 @@ pub fn process_codex_toml(content: &str, wrap: bool) -> Result<String, String> {
             } else {
                 // Unwrap cmd /c
                 if (command.eq_ignore_ascii_case("cmd") || command.eq_ignore_ascii_case("cmd.exe"))
-                    && args.first().map(|s| s.eq_ignore_ascii_case("/c")).unwrap_or(false)
+                    && args
+                        .first()
+                        .map(|s| s.eq_ignore_ascii_case("/c"))
+                        .unwrap_or(false)
                     && args.len() >= 2
                 {
                     server["command"] = toml_edit::value(&args[1]);
@@ -482,7 +485,10 @@ mod tests {
         let result = process_claude_json(content, false).unwrap();
         let parsed: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["mcpServers"]["test"]["command"], "npx");
-        assert_eq!(parsed["mcpServers"]["test"]["args"], json!(["-y", "@foo/bar"]));
+        assert_eq!(
+            parsed["mcpServers"]["test"]["args"],
+            json!(["-y", "@foo/bar"])
+        );
     }
 
     #[test]

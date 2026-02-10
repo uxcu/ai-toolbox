@@ -7,7 +7,10 @@ use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
-use super::utils::{get_db_path, get_opencode_config_path, get_opencode_restore_dir, get_opencode_auth_path, get_codex_auth_path, get_codex_config_path, get_skills_dir};
+use super::utils::{
+    get_codex_auth_path, get_codex_config_path, get_db_path, get_opencode_auth_path,
+    get_opencode_config_path, get_opencode_restore_dir, get_skills_dir,
+};
 
 /// Get the home directory
 fn get_home_dir() -> Result<PathBuf, String> {
@@ -95,8 +98,7 @@ pub async fn backup_database(
     let file = File::create(&backup_file_path)
         .map_err(|e| format!("Failed to create backup file: {}", e))?;
     let mut zip = ZipWriter::new(file);
-    let options =
-        SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     // Walk through the database directory and add files to zip under "db/" prefix
     let mut has_files = false;
@@ -335,27 +337,29 @@ pub async fn restore_database(
                 if relative_path == "auth.json" {
                     let auth_dir = home_dir.join(".local").join("share").join("opencode");
                     if !auth_dir.exists() {
-                        fs::create_dir_all(&auth_dir)
-                            .map_err(|e| format!("Failed to create opencode auth directory: {}", e))?;
+                        fs::create_dir_all(&auth_dir).map_err(|e| {
+                            format!("Failed to create opencode auth directory: {}", e)
+                        })?;
                     }
                     let outpath = safe_join_under(&auth_dir, "auth.json")?;
-                    let mut outfile =
-                        File::create(&outpath).map_err(|e| format!("Failed to create file: {}", e))?;
+                    let mut outfile = File::create(&outpath)
+                        .map_err(|e| format!("Failed to create file: {}", e))?;
                     std::io::copy(&mut file, &mut outfile)
                         .map_err(|e| format!("Failed to extract file: {}", e))?;
                 } else {
                     let opencode_dir = get_opencode_restore_dir()?;
                     if !opencode_dir.exists() {
-                        fs::create_dir_all(&opencode_dir)
-                            .map_err(|e| format!("Failed to create opencode config directory: {}", e))?;
+                        fs::create_dir_all(&opencode_dir).map_err(|e| {
+                            format!("Failed to create opencode config directory: {}", e)
+                        })?;
                     }
 
                     let outpath = safe_join_under(&opencode_dir, relative_path)?;
 
                     // Just copy the file - MCP cmd /c normalization will be handled
                     // by mcp_sync_all during startup resync (triggered by .resync_required flag)
-                    let mut outfile =
-                        File::create(&outpath).map_err(|e| format!("Failed to create file: {}", e))?;
+                    let mut outfile = File::create(&outpath)
+                        .map_err(|e| format!("Failed to create file: {}", e))?;
                     std::io::copy(&mut file, &mut outfile)
                         .map_err(|e| format!("Failed to extract file: {}", e))?;
                 }
@@ -417,8 +421,9 @@ pub async fn restore_database(
                 let outpath = safe_join_under(&skills_dir, relative_path)?;
                 if let Some(parent) = outpath.parent() {
                     if !parent.exists() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| format!("Failed to create skills parent directory: {}", e))?;
+                        fs::create_dir_all(parent).map_err(|e| {
+                            format!("Failed to create skills parent directory: {}", e)
+                        })?;
                     }
                 }
                 let mut outfile = File::create(&outpath)

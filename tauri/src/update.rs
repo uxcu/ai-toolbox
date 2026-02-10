@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use tauri_plugin_updater::UpdaterExt;
 use tauri::Emitter;
+use tauri_plugin_updater::UpdaterExt;
 
 use crate::db::DbState;
 use crate::http_client;
@@ -79,8 +79,12 @@ pub async fn check_for_updates(
 
     // Get signature and url for current platform
     let platform_info = release.platforms.get(&current_platform);
-    let signature = platform_info.and_then(|p| p.signature.clone()).filter(|s| !s.is_empty());
-    let url = platform_info.and_then(|p| p.url.clone()).filter(|s| !s.is_empty());
+    let signature = platform_info
+        .and_then(|p| p.signature.clone())
+        .filter(|s| !s.is_empty());
+    let url = platform_info
+        .and_then(|p| p.url.clone())
+        .filter(|s| !s.is_empty());
 
     Ok(UpdateCheckResult {
         has_update,
@@ -148,13 +152,16 @@ pub async fn install_update(
     let result = match updater.check().await {
         Ok(Some(update)) => {
             // Emit download started event
-            let _ = app.emit("update-download-progress", serde_json::json!({
-                "status": "started",
-                "progress": 0,
-                "downloaded": 0,
-                "total": 0,
-                "speed": 0
-            }));
+            let _ = app.emit(
+                "update-download-progress",
+                serde_json::json!({
+                    "status": "started",
+                    "progress": 0,
+                    "downloaded": 0,
+                    "total": 0,
+                    "speed": 0
+                }),
+            );
 
             // Download and install with speed calculation
             let downloaded = AtomicU64::new(0);
@@ -162,55 +169,65 @@ pub async fn install_update(
             let mut last_time = Instant::now();
             let mut speed: f64 = 0.0;
 
-            let install_result = update.download_and_install(
-                |chunk_length, content_length| {
-                    downloaded.fetch_add(chunk_length as u64, Ordering::SeqCst);
-                    let current_downloaded = downloaded.load(Ordering::SeqCst);
+            let install_result = update
+                .download_and_install(
+                    |chunk_length, content_length| {
+                        downloaded.fetch_add(chunk_length as u64, Ordering::SeqCst);
+                        let current_downloaded = downloaded.load(Ordering::SeqCst);
 
-                    // Calculate download speed
-                    let now = Instant::now();
-                    let elapsed = now.duration_since(last_time);
+                        // Calculate download speed
+                        let now = Instant::now();
+                        let elapsed = now.duration_since(last_time);
 
-                    if elapsed >= Duration::from_millis(200) {
-                        let bytes_since_last = current_downloaded.saturating_sub(last_downloaded);
-                        if bytes_since_last > 0 {
-                            // Speed in bytes per second
-                            let speed_calc = bytes_since_last as f64 / elapsed.as_secs_f64();
-                            // Use exponential moving average for smoother display
-                            if speed == 0.0 {
-                                speed = speed_calc;
-                            } else {
-                                speed = speed * 0.7 + speed_calc * 0.3;
+                        if elapsed >= Duration::from_millis(200) {
+                            let bytes_since_last =
+                                current_downloaded.saturating_sub(last_downloaded);
+                            if bytes_since_last > 0 {
+                                // Speed in bytes per second
+                                let speed_calc = bytes_since_last as f64 / elapsed.as_secs_f64();
+                                // Use exponential moving average for smoother display
+                                if speed == 0.0 {
+                                    speed = speed_calc;
+                                } else {
+                                    speed = speed * 0.7 + speed_calc * 0.3;
+                                }
                             }
+                            last_downloaded = current_downloaded;
+                            last_time = now;
                         }
-                        last_downloaded = current_downloaded;
-                        last_time = now;
-                    }
 
-                    if let Some(total) = content_length {
-                        let percentage = (current_downloaded as f64 / total as f64 * 100.0) as u32;
-                        // Emit progress event with speed
-                        let _ = app.emit("update-download-progress", serde_json::json!({
-                            "status": "downloading",
-                            "progress": percentage,
-                            "downloaded": current_downloaded,
-                            "total": total,
-                            "speed": speed as u64
-                        }));
-                    }
-                },
-                || {
-                    let current_downloaded = downloaded.load(Ordering::SeqCst);
-                    // Emit installing event
-                    let _ = app.emit("update-download-progress", serde_json::json!({
-                        "status": "installing",
-                        "progress": 100,
-                        "downloaded": current_downloaded,
-                        "total": current_downloaded,
-                        "speed": 0
-                    }));
-                },
-            ).await;
+                        if let Some(total) = content_length {
+                            let percentage =
+                                (current_downloaded as f64 / total as f64 * 100.0) as u32;
+                            // Emit progress event with speed
+                            let _ = app.emit(
+                                "update-download-progress",
+                                serde_json::json!({
+                                    "status": "downloading",
+                                    "progress": percentage,
+                                    "downloaded": current_downloaded,
+                                    "total": total,
+                                    "speed": speed as u64
+                                }),
+                            );
+                        }
+                    },
+                    || {
+                        let current_downloaded = downloaded.load(Ordering::SeqCst);
+                        // Emit installing event
+                        let _ = app.emit(
+                            "update-download-progress",
+                            serde_json::json!({
+                                "status": "installing",
+                                "progress": 100,
+                                "downloaded": current_downloaded,
+                                "total": current_downloaded,
+                                "speed": 0
+                            }),
+                        );
+                    },
+                )
+                .await;
 
             match install_result {
                 Ok(_) => {

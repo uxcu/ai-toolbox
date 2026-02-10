@@ -1,7 +1,7 @@
-use serde_json::{json, Value};
 use super::types::{ClaudeCodeProvider, ClaudeCodeProviderContent, ClaudeCommonConfig};
 use crate::coding::db_id::db_extract_id;
 use chrono::Local;
+use serde_json::{json, Value};
 
 // ============================================================================
 // Provider Adapter Functions
@@ -110,4 +110,3 @@ pub fn to_db_value_common(config: &str) -> Value {
         "updated_at": now
     })
 }
-

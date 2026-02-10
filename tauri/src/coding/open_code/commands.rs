@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
-use serde_json::Value;
 use tauri::Emitter;
 
 use super::adapter;
@@ -59,21 +59,21 @@ pub async fn get_opencode_config_path(state: tauri::State<'_, DbState>) -> Resul
             }
         }
     }
-    
+
     // 2. Check system environment variable (second priority)
     if let Ok(env_path) = std::env::var("OPENCODE_CONFIG") {
         if !env_path.is_empty() {
             return Ok(env_path);
         }
     }
-    
+
     // 3. Check shell configuration files (third priority)
     if let Some(shell_path) = super::shell_env::get_env_from_shell_config("OPENCODE_CONFIG") {
         if !shell_path.is_empty() {
             return Ok(shell_path);
         }
     }
-    
+
     // 4. Return default path
     get_default_config_path()
 }
@@ -94,7 +94,7 @@ pub async fn get_opencode_config_path_info(
             }
         }
     }
-    
+
     // 2. Check system environment variable (second priority)
     if let Ok(env_path) = std::env::var("OPENCODE_CONFIG") {
         if !env_path.is_empty() {
@@ -104,7 +104,7 @@ pub async fn get_opencode_config_path_info(
             });
         }
     }
-    
+
     // 3. Check shell configuration files (third priority)
     if let Some(shell_path) = super::shell_env::get_env_from_shell_config("OPENCODE_CONFIG") {
         if !shell_path.is_empty() {
@@ -114,7 +114,7 @@ pub async fn get_opencode_config_path_info(
             });
         }
     }
-    
+
     // 4. Return default path
     let default_path = get_default_config_path()?;
     Ok(ConfigPathInfo {
@@ -148,17 +148,25 @@ pub fn get_default_config_path() -> Result<String, String> {
 
 /// Read OpenCode configuration file with detailed result
 #[tauri::command]
-pub async fn read_opencode_config(state: tauri::State<'_, DbState>) -> Result<ReadConfigResult, String> {
+pub async fn read_opencode_config(
+    state: tauri::State<'_, DbState>,
+) -> Result<ReadConfigResult, String> {
     let config_path_str = get_opencode_config_path(state).await?;
     let config_path = Path::new(&config_path_str);
 
     if !config_path.exists() {
-        return Ok(ReadConfigResult::NotFound { path: config_path_str });
+        return Ok(ReadConfigResult::NotFound {
+            path: config_path_str,
+        });
     }
 
     let content = match fs::read_to_string(config_path) {
         Ok(c) => c,
-        Err(e) => return Ok(ReadConfigResult::Error { error: format!("Failed to read config file: {}", e) }),
+        Err(e) => {
+            return Ok(ReadConfigResult::Error {
+                error: format!("Failed to read config file: {}", e),
+            })
+        }
     };
 
     match json5::from_str::<OpenCodeConfig>(&content) {
@@ -178,14 +186,22 @@ pub async fn read_opencode_config(state: tauri::State<'_, DbState>) -> Result<Re
                     if provider.npm.is_none() {
                         // Smart npm inference based on provider key or name (case-insensitive)
                         let key_lower = key.to_lowercase();
-                        let name_lower = provider.name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
+                        let name_lower = provider
+                            .name
+                            .as_ref()
+                            .map(|n| n.to_lowercase())
+                            .unwrap_or_default();
 
-                        let inferred_npm = if key_lower.contains("google") || key_lower.contains("gemini")
-                            || name_lower.contains("google") || name_lower.contains("gemini")
+                        let inferred_npm = if key_lower.contains("google")
+                            || key_lower.contains("gemini")
+                            || name_lower.contains("google")
+                            || name_lower.contains("gemini")
                         {
                             "@ai-sdk/google"
-                        } else if key_lower.contains("anthropic") || key_lower.contains("claude")
-                            || name_lower.contains("anthropic") || name_lower.contains("claude")
+                        } else if key_lower.contains("anthropic")
+                            || key_lower.contains("claude")
+                            || name_lower.contains("anthropic")
+                            || name_lower.contains("claude")
                         {
                             "@ai-sdk/anthropic"
                         } else {
@@ -267,8 +283,8 @@ pub async fn apply_config_internal<R: tauri::Runtime>(
     }
 
     // Serialize to JSON Value first, then clean up empty objects
-    let mut json_value = serde_json::to_value(&config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    let mut json_value =
+        serde_json::to_value(&config).map_err(|e| format!("Failed to serialize config: {}", e))?;
 
     // Clean up empty objects in models (options, variants, modalities)
     clean_empty_objects(&mut json_value);
@@ -318,7 +334,10 @@ pub async fn get_opencode_common_config(
         }
         Err(e) => {
             // 反序列化失败，删除旧数据以修复版本冲突
-            eprintln!("⚠️ OpenCode common config has incompatible format, cleaning up: {}", e);
+            eprintln!(
+                "⚠️ OpenCode common config has incompatible format, cleaning up: {}",
+                e
+            );
             let _ = db.query("DELETE opencode_common_config:`common`").await;
             Ok(None)
         }
@@ -355,7 +374,8 @@ pub async fn get_opencode_free_models(
     state: tauri::State<'_, DbState>,
     force_refresh: Option<bool>,
 ) -> Result<GetFreeModelsResponse, String> {
-    let (free_models, from_cache, updated_at) = super::free_models::get_free_models(&state, force_refresh.unwrap_or(false)).await?;
+    let (free_models, from_cache, updated_at) =
+        super::free_models::get_free_models(&state, force_refresh.unwrap_or(false)).await?;
     let total = free_models.len();
 
     Ok(GetFreeModelsResponse {
@@ -397,7 +417,9 @@ pub async fn get_opencode_unified_models(
     };
 
     // Get unified model list
-    let models = super::free_models::get_unified_models(&state, custom_providers.as_ref(), &auth_channels).await;
+    let models =
+        super::free_models::get_unified_models(&state, custom_providers.as_ref(), &auth_channels)
+            .await;
 
     Ok(models)
 }
@@ -420,7 +442,8 @@ pub async fn get_opencode_auth_providers(
     };
 
     // Get auth providers data
-    let response = super::free_models::get_auth_providers_data(&state, custom_providers.as_ref()).await;
+    let response =
+        super::free_models::get_auth_providers_data(&state, custom_providers.as_ref()).await;
 
     Ok(response)
 }
@@ -440,7 +463,9 @@ const DEFAULT_FAVORITE_PLUGINS: &[&str] = &[
 ];
 
 /// Initialize default favorite plugins if database is empty
-async fn init_default_favorite_plugins(db: &surrealdb::Surreal<surrealdb::engine::local::Db>) -> Result<(), String> {
+async fn init_default_favorite_plugins(
+    db: &surrealdb::Surreal<surrealdb::engine::local::Db>,
+) -> Result<(), String> {
     let now = chrono::Local::now().to_rfc3339();
 
     for plugin_name in DEFAULT_FAVORITE_PLUGINS {
@@ -475,10 +500,12 @@ pub async fn list_opencode_favorite_plugins(
 
     let is_empty = match count_result {
         Ok(records) => {
-            records.first()
+            records
+                .first()
                 .and_then(|r| r.get("count"))
                 .and_then(|c| c.as_i64())
-                .unwrap_or(0) == 0
+                .unwrap_or(0)
+                == 0
         }
         Err(_) => true,
     };
@@ -694,7 +721,11 @@ pub async fn upsert_opencode_favorite_provider(
         .as_ref()
         .map(|record| record.created_at.clone())
         .unwrap_or_else(|| now.clone());
-    let diagnostics_to_save = diagnostics.or_else(|| existing_record.as_ref().and_then(|record| record.diagnostics.clone()));
+    let diagnostics_to_save = diagnostics.or_else(|| {
+        existing_record
+            .as_ref()
+            .and_then(|record| record.diagnostics.clone())
+    });
 
     if has_existing {
         db.query("UPDATE opencode_favorite_provider SET npm = $npm, base_url = $base_url, provider_config = $provider_config, diagnostics = $diagnostics, updated_at = $updated_at WHERE provider_id = $provider_id")

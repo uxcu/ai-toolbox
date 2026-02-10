@@ -271,7 +271,8 @@ pub async fn fetch_provider_models(
             // OpenAI Compatible or others: use Bearer token
             if let Some(api_key) = &request.api_key {
                 if !api_key.is_empty() {
-                    req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+                    req_builder =
+                        req_builder.header("Authorization", format!("Bearer {}", api_key));
                 }
             }
         }
@@ -354,11 +355,19 @@ pub async fn fetch_provider_models(
         _ => {
             // Parse OpenAI compatible response format
             // First, get response text for debugging
-            let response_text = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+            let response_text = response
+                .text()
+                .await
+                .map_err(|e| format!("Failed to read response: {}", e))?;
 
             // Try to parse as OpenAI format
             let openai_response: OpenAIModelsResponse = serde_json::from_str(&response_text)
-                .map_err(|e| format!("Failed to parse OpenAI response: {}. Response was: {}", e, response_text))?;
+                .map_err(|e| {
+                    format!(
+                        "Failed to parse OpenAI response: {}. Response was: {}",
+                        e, response_text
+                    )
+                })?;
 
             openai_response
                 .data
@@ -488,7 +497,11 @@ fn build_connectivity_url(
         "@ai-sdk/openai" => format!("{}/v1/responses", base),
         "@ai-sdk/google" => {
             let normalized_model = model_id.strip_prefix("models/").unwrap_or(model_id);
-            let action = if stream { "streamGenerateContent" } else { "generateContent" };
+            let action = if stream {
+                "streamGenerateContent"
+            } else {
+                "generateContent"
+            };
             let url = format!("{}/v1beta/models/{}:{}", base, normalized_model, action);
             if let Some(key) = api_key {
                 if !key.is_empty() {
@@ -691,12 +704,24 @@ async fn run_connectivity_test_for_model(
     let mut request_headers = BTreeMap::new();
     if is_anthropic {
         request_headers.insert("Accept".to_string(), "application/json".to_string());
-        request_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br, zstd".to_string());
+        request_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br, zstd".to_string(),
+        );
         request_headers.insert("Connection".to_string(), "keep-alive".to_string());
         request_headers.insert("Content-Type".to_string(), "application/json".to_string());
-        request_headers.insert("User-Agent".to_string(), "claude-cli/2.1.19 (external, cli)".to_string());
-        request_headers.insert("anthropic-beta".to_string(), "interleaved-thinking-2025-05-14".to_string());
-        request_headers.insert("anthropic-dangerous-direct-browser-access".to_string(), "true".to_string());
+        request_headers.insert(
+            "User-Agent".to_string(),
+            "claude-cli/2.1.19 (external, cli)".to_string(),
+        );
+        request_headers.insert(
+            "anthropic-beta".to_string(),
+            "interleaved-thinking-2025-05-14".to_string(),
+        );
+        request_headers.insert(
+            "anthropic-dangerous-direct-browser-access".to_string(),
+            "true".to_string(),
+        );
         request_headers.insert("anthropic-version".to_string(), "2023-06-01".to_string());
     }
 
@@ -867,13 +892,23 @@ mod tests {
 
         // Base URL with /v1
         assert_eq!(
-            build_models_url("https://api.openai.com/v1", &ApiType::OpenaiCompat, None, None),
+            build_models_url(
+                "https://api.openai.com/v1",
+                &ApiType::OpenaiCompat,
+                None,
+                None
+            ),
             "https://api.openai.com/v1/models"
         );
 
         // Base URL with trailing slash
         assert_eq!(
-            build_models_url("https://api.openai.com/v1/", &ApiType::OpenaiCompat, None, None),
+            build_models_url(
+                "https://api.openai.com/v1/",
+                &ApiType::OpenaiCompat,
+                None,
+                None
+            ),
             "https://api.openai.com/v1/models"
         );
 

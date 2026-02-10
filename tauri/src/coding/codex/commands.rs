@@ -1,12 +1,12 @@
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
-use serde_json::Value;
 
-use crate::db::DbState;
 use super::adapter;
 use super::types::*;
-use tauri::Emitter;
+use crate::db::DbState;
 use chrono::Local;
+use tauri::Emitter;
 
 // ============================================================================
 // Codex Config Path Commands
@@ -17,7 +17,7 @@ fn get_codex_config_dir() -> Result<std::path::PathBuf, String> {
     let home_dir = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map_err(|_| "Failed to get home directory".to_string())?;
-    
+
     Ok(Path::new(&home_dir).join(".codex"))
 }
 
@@ -102,7 +102,7 @@ pub async fn list_codex_providers(
         .map_err(|e| format!("Failed to query providers: {}", e))?
         .take(0);
 
-match records_result {
+    match records_result {
         Ok(records) => {
             if records.is_empty() {
                 // Database is empty, try to load from local files as temporary provider
@@ -185,15 +185,13 @@ async fn load_temp_provider_from_files() -> Result<CodexProvider, String> {
 /// 修复损坏的 Codex provider 数据
 /// 删除所有 provider 记录，需要重新创建
 #[tauri::command]
-pub async fn repair_codex_providers(
-    state: tauri::State<'_, DbState>,
-) -> Result<String, String> {
+pub async fn repair_codex_providers(state: tauri::State<'_, DbState>) -> Result<String, String> {
     let db = state.0.lock().await;
-    
+
     db.query("DELETE codex_provider")
         .await
         .map_err(|e| format!("Failed to delete providers: {}", e))?;
-    
+
     Ok("All Codex providers have been deleted. Please recreate them.".to_string())
 }
 
@@ -233,7 +231,9 @@ pub async fn create_codex_provider(
 
     // Fetch the created record to get the auto-generated ID
     let result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM codex_provider ORDER BY created_at DESC LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM codex_provider ORDER BY created_at DESC LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to fetch created provider: {}", e))?
         .take(0);
@@ -340,22 +340,22 @@ pub async fn update_codex_provider(
     // Notify frontend and tray to refresh
     let _ = app.emit("config-changed", "window");
 
-        Ok(CodexProvider {
-            id,
-            name: content.name,
-            category: content.category,
-            settings_config: content.settings_config,
-            source_provider_id: content.source_provider_id,
-            website_url: content.website_url,
-            notes: content.notes,
-            icon: content.icon,
-            icon_color: content.icon_color,
-            sort_index: content.sort_index,
-            is_applied: content.is_applied,
-            is_disabled: content.is_disabled,
-            created_at: content.created_at,
-            updated_at: content.updated_at,
-        })
+    Ok(CodexProvider {
+        id,
+        name: content.name,
+        category: content.category,
+        settings_config: content.settings_config,
+        source_provider_id: content.source_provider_id,
+        website_url: content.website_url,
+        notes: content.notes,
+        icon: content.icon,
+        icon_color: content.icon_color,
+        sort_index: content.sort_index,
+        is_applied: content.is_applied,
+        is_disabled: content.is_disabled,
+        created_at: content.created_at,
+        updated_at: content.updated_at,
+    })
 }
 
 /// Delete a Codex provider
@@ -399,22 +399,56 @@ pub async fn reorder_codex_providers(
             if let Some(record) = records.first() {
                 // 构建更新后的内容
                 let content = CodexProviderContent {
-                    name: record.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    category: record.get("category").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    settings_config: record.get("settings_config").and_then(|v| v.as_str()).unwrap_or("{}").to_string(),
-                    source_provider_id: record.get("source_provider_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    website_url: record.get("website_url").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    notes: record.get("notes").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    icon: record.get("icon").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    icon_color: record.get("icon_color").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    name: record
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    category: record
+                        .get("category")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    settings_config: record
+                        .get("settings_config")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("{}")
+                        .to_string(),
+                    source_provider_id: record
+                        .get("source_provider_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    website_url: record
+                        .get("website_url")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    notes: record
+                        .get("notes")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    icon: record
+                        .get("icon")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    icon_color: record
+                        .get("icon_color")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
                     sort_index: Some(index as i32),
-                    is_applied: record.get("is_applied").and_then(|v| v.as_bool()).unwrap_or(false),
+                    is_applied: record
+                        .get("is_applied")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
                     is_disabled: record
                         .get("is_disabled")
                         .or_else(|| record.get("isDisabled"))
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false),
-                    created_at: record.get("created_at").and_then(|v| v.as_str()).unwrap_or(&now).to_string(),
+                    created_at: record
+                        .get("created_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&now)
+                        .to_string(),
                     updated_at: now.clone(),
                 };
 
@@ -458,10 +492,12 @@ async fn update_is_applied_status(
     let target_id = target_id.to_string(); // Clone for bind
 
     // Clear current applied status (only update the currently applied one)
-    db.query("UPDATE codex_provider SET is_applied = false, updated_at = $now WHERE is_applied = true")
-        .bind(("now", now.clone()))
-        .await
-        .map_err(|e| format!("Failed to clear applied status: {}", e))?;
+    db.query(
+        "UPDATE codex_provider SET is_applied = false, updated_at = $now WHERE is_applied = true",
+    )
+    .bind(("now", now.clone()))
+    .await
+    .map_err(|e| format!("Failed to clear applied status: {}", e))?;
 
     // Set target provider as applied
     db.query("UPDATE codex_provider SET is_applied = true, updated_at = $now WHERE id = type::thing('codex_provider', $id)")
@@ -511,7 +547,10 @@ pub async fn apply_config_to_file_public(
 
     // Check if provider is disabled
     if provider.is_disabled {
-        return Err(format!("Provider '{}' is disabled and cannot be applied", provider_id));
+        return Err(format!(
+            "Provider '{}' is disabled and cannot be applied",
+            provider_id
+        ));
     }
 
     // Parse provider settings_config
@@ -527,13 +566,18 @@ pub async fn apply_config_to_file_public(
 
     let common_toml: Option<String> = match common_config_result {
         Ok(records) => records.first().and_then(|r| {
-            r.get("config").and_then(|v| v.as_str()).map(|s| s.to_string())
+            r.get("config")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
         }),
         Err(_) => None,
     };
 
     // Extract auth and config
-    let auth = provider_config.get("auth").cloned().unwrap_or(serde_json::json!({}));
+    let auth = provider_config
+        .get("auth")
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
     let config_toml = provider_config
         .get("config")
         .and_then(|v| v.as_str())
@@ -585,8 +629,7 @@ fn write_codex_config_files(auth: &serde_json::Value, config_toml: &str) -> Resu
     let auth_path = config_dir.join("auth.json");
     let auth_content = serde_json::to_string_pretty(auth)
         .map_err(|e| format!("Failed to serialize auth: {}", e))?;
-    fs::write(&auth_path, auth_content)
-        .map_err(|e| format!("Failed to write auth.json: {}", e))?;
+    fs::write(&auth_path, auth_content).map_err(|e| format!("Failed to write auth.json: {}", e))?;
 
     // Write config.toml with partial update (preserve mcp_servers)
     let config_path = config_dir.join("config.toml");
@@ -596,14 +639,18 @@ fn write_codex_config_files(auth: &serde_json::Value, config_toml: &str) -> Resu
 }
 
 /// Write config.toml while preserving mcp_servers and other unrelated fields
-fn write_codex_config_toml_preserve_mcp(config_path: &std::path::Path, new_config: &str) -> Result<(), String> {
+fn write_codex_config_toml_preserve_mcp(
+    config_path: &std::path::Path,
+    new_config: &str,
+) -> Result<(), String> {
     use toml_edit::DocumentMut;
 
     // Parse new config
     let new_doc: DocumentMut = if new_config.trim().is_empty() {
         DocumentMut::new()
     } else {
-        new_config.parse()
+        new_config
+            .parse()
             .map_err(|e| format!("Failed to parse new config: {}", e))?
     };
 
@@ -614,7 +661,8 @@ fn write_codex_config_toml_preserve_mcp(config_path: &std::path::Path, new_confi
         if content.trim().is_empty() {
             DocumentMut::new()
         } else {
-            content.parse()
+            content
+                .parse()
                 .map_err(|e| format!("Failed to parse existing config.toml: {}", e))?
         }
     } else {
@@ -737,15 +785,16 @@ pub async fn read_codex_settings() -> Result<CodexSettings, String> {
     let auth = if auth_path.exists() {
         let content = fs::read_to_string(&auth_path)
             .map_err(|e| format!("Failed to read auth.json: {}", e))?;
-        serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse auth.json: {}", e))?
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse auth.json: {}", e))?
     } else {
         None
     };
 
     let config = if config_path.exists() {
-        Some(fs::read_to_string(&config_path)
-            .map_err(|e| format!("Failed to read config.toml: {}", e))?)
+        Some(
+            fs::read_to_string(&config_path)
+                .map_err(|e| format!("Failed to read config.toml: {}", e))?,
+        )
     } else {
         None
     };
@@ -782,7 +831,10 @@ pub async fn get_codex_common_config(
         }
         Err(e) => {
             // 反序列化失败，删除旧数据以修复版本冲突
-            eprintln!("⚠️ Codex common config has incompatible format, cleaning up: {}", e);
+            eprintln!(
+                "⚠️ Codex common config has incompatible format, cleaning up: {}",
+                e
+            );
             let _ = db.query("DELETE codex_common_config:`common`").await;
             Ok(None)
         }
@@ -800,8 +852,7 @@ pub async fn save_codex_common_config(
 
     // Validate TOML if not empty
     if !config.trim().is_empty() {
-        let _: toml::Table = toml::from_str(&config)
-            .map_err(|e| format!("Invalid TOML: {}", e))?;
+        let _: toml::Table = toml::from_str(&config).map_err(|e| format!("Invalid TOML: {}", e))?;
     }
 
     let json_data = adapter::to_db_value_common(&config);
@@ -814,7 +865,9 @@ pub async fn save_codex_common_config(
 
     // Re-apply current provider config to write merged config to file
     let applied_result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM codex_provider WHERE is_applied = true LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM codex_provider WHERE is_applied = true LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to query applied provider: {}", e))?
         .take(0);
@@ -909,7 +962,9 @@ pub async fn save_codex_local_config(
 
     // Re-apply config to files using the newly created provider
     let created_result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM codex_provider ORDER BY created_at DESC LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM codex_provider ORDER BY created_at DESC LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to fetch created provider: {}", e))?
         .take(0);

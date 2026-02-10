@@ -54,7 +54,8 @@ pub async fn get_claude_code_tray_data<R: Runtime>(
                 if let (Some(raw_id), Some(name), Some(is_applied), sort_index) = (
                     record.get("id").and_then(|v| v.as_str()),
                     record.get("name").and_then(|v| v.as_str()),
-                    record.get("is_applied")
+                    record
+                        .get("is_applied")
                         .or_else(|| record.get("isApplied"))
                         .and_then(|v| v.as_bool()),
                     record
@@ -92,10 +93,13 @@ pub async fn get_claude_code_tray_data<R: Runtime>(
 
     let data = TrayProviderData {
         title: "──── Claude Code ────".to_string(),
-        items: items.into_iter().map(|mut item| {
-            item.sort_index = 0; // Clear sort_index for tray display
-            item
-        }).collect(),
+        items: items
+            .into_iter()
+            .map(|mut item| {
+                item.sort_index = 0; // Clear sort_index for tray display
+                item
+            })
+            .collect(),
     };
 
     Ok(data)

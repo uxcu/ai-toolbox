@@ -44,7 +44,7 @@ pub struct SkillTarget {
 /// Skill repository source - user configured skill source repos
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SkillRepo {
-    pub id: String,     // Format: "owner/name"
+    pub id: String, // Format: "owner/name"
     pub owner: String,
     pub name: String,
     pub branch: String, // default: "main"

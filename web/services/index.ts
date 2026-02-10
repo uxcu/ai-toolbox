@@ -10,3 +10,5 @@ export * from './backupApi';
 export * from './opencodeApi';
 export * from './appApi';
 export * from './ohMyOpenCodeApi';
+export * from './ccSwitchApi';
+

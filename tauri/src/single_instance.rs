@@ -68,8 +68,7 @@ pub fn try_acquire_lock() -> Result<SingleInstanceLock, String> {
     // Ensure parent directory exists
     if let Some(parent) = lock_path.parent() {
         if !parent.exists() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("无法创建锁文件目录: {}", e))?;
+            std::fs::create_dir_all(parent).map_err(|e| format!("无法创建锁文件目录: {}", e))?;
         }
     }
 
@@ -98,8 +97,14 @@ pub fn try_acquire_lock() -> Result<SingleInstanceLock, String> {
             }
             let pid = pid_str.trim();
 
-            warn!("检测到另一个实例正在运行 (PID: {})", if pid.is_empty() { "unknown" } else { pid });
-            return Err(format!("另一个实例正在运行 (PID: {})", if pid.is_empty() { "unknown" } else { pid }));
+            warn!(
+                "检测到另一个实例正在运行 (PID: {})",
+                if pid.is_empty() { "unknown" } else { pid }
+            );
+            return Err(format!(
+                "另一个实例正在运行 (PID: {})",
+                if pid.is_empty() { "unknown" } else { pid }
+            ));
         } else {
             error!("获取文件锁失败: {}", errno);
             return Err(format!("获取文件锁失败: {}", errno));

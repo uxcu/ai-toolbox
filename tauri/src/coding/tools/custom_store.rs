@@ -4,9 +4,9 @@
 
 use serde_json::Value;
 
+use super::types::CustomTool;
 use crate::coding::db_extract_id;
 use crate::DbState;
-use super::types::CustomTool;
 
 /// Convert database record to CustomTool struct
 pub fn from_db_custom_tool(value: Value) -> CustomTool {
@@ -28,7 +28,10 @@ pub fn from_db_custom_tool(value: Value) -> CustomTool {
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string()),
-        force_copy: value.get("force_copy").and_then(|v| v.as_bool()).unwrap_or(false),
+        force_copy: value
+            .get("force_copy")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         mcp_config_path: value
             .get("mcp_config_path")
             .and_then(|v| v.as_str())
@@ -44,7 +47,10 @@ pub fn from_db_custom_tool(value: Value) -> CustomTool {
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string()),
-        created_at: value.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0),
+        created_at: value
+            .get("created_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
     }
 }
 
@@ -109,7 +115,10 @@ pub async fn get_mcp_custom_tools(state: &DbState) -> Result<Vec<CustomTool>, St
 }
 
 /// Get a custom tool by key
-pub async fn get_custom_tool_by_key(state: &DbState, key: &str) -> Result<Option<CustomTool>, String> {
+pub async fn get_custom_tool_by_key(
+    state: &DbState,
+    key: &str,
+) -> Result<Option<CustomTool>, String> {
     let db = state.0.lock().await;
 
     let mut result = db
@@ -198,7 +207,10 @@ pub async fn save_custom_tool_mcp_fields(
 
     // Preserve existing skills fields
     let (skills_dir, detect_dir) = match existing {
-        Some(e) => (e.relative_skills_dir, e.relative_detect_dir.or(relative_detect_dir)),
+        Some(e) => (
+            e.relative_skills_dir,
+            e.relative_detect_dir.or(relative_detect_dir),
+        ),
         None => (None, relative_detect_dir),
     };
 

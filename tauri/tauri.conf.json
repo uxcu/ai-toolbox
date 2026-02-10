@@ -32,9 +32,9 @@
       "open": true
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFENkM1QTI3OTA0MkE3M0YKUldRL3AwS1FKMXBzSGVCZUJqSWNvcXNLcExuRGhlQkovcXhyTEpOTU96K2JpQytGbkZQbDZHV20K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUzQjJDOUNCRUVFMThCQUQKUldTdGkrSHV5OG15NDluM0NQZkxNT1dUWkRMclY0dUtiSmp2Tksxd1VzRWlIWWVDWXNpUXNCMTMK",
       "endpoints": [
-        "https://github.com/coulsontl/ai-toolbox/releases/latest/download/latest.json"
+        "https://github.com/uxcu/ai-toolbox/releases/latest/download/latest.json"
       ]
     }
   }

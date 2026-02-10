@@ -243,10 +243,13 @@
       "downloadingUpdate": "正在下载并安装更新...",
       "downloadingProgress": "已下载 {{progress}}%",
       "downloadingComplete": "下载完成，正在安装...",
-      "installingUpdate": "正在安装更新...",
-      "viewReleaseNotes": "查看更新内容"
-    }
-  },
+"installingUpdate": "正在安装更新...",
+        "viewReleaseNotes": "查看更新内容"
+      },
+      "ccSwitch": {
+        "import": "导入 CC-Switch 配置"
+      }
+    },
   "theme": {
     "light": "浅色",
     "dark": "深色",

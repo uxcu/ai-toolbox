@@ -8,8 +8,10 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use super::adapter::parse_sync_details;
 use super::skill_store;
 use super::sync_engine::{remove_path, sync_dir_for_tool_with_overwrite};
-use super::tool_adapters::{get_all_tool_adapters, is_tool_installed, resolve_runtime_skills_path, runtime_adapter_by_key};
-use super::types::{SkillTarget, now_ms};
+use super::tool_adapters::{
+    get_all_tool_adapters, is_tool_installed, resolve_runtime_skills_path, runtime_adapter_by_key,
+};
+use super::types::{now_ms, SkillTarget};
 use crate::DbState;
 
 /// Item for tool selection in skill submenu
@@ -63,13 +65,13 @@ pub async fn is_skills_enabled_for_tray<R: Runtime>(app: &AppHandle<R>) -> bool 
 
 /// Get skills tray data
 /// Returns all managed skills with their tool sync states
-pub async fn get_skills_tray_data<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<TraySkillData, String> {
+pub async fn get_skills_tray_data<R: Runtime>(app: &AppHandle<R>) -> Result<TraySkillData, String> {
     let state = app.state::<DbState>();
 
     // Get custom tools for adapter lookup
-    let custom_tools = skill_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let all_adapters = get_all_tool_adapters(&custom_tools);
 
     // Get preferred tools (or use all installed tools if not set)
@@ -77,8 +79,8 @@ pub async fn get_skills_tray_data<R: Runtime>(
         .await
         .ok()
         .flatten();
-    let preferred_tools: Option<Vec<String>> = preferred_tools_raw
-        .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok());
+    let preferred_tools: Option<Vec<String>> =
+        preferred_tools_raw.and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok());
 
     // Determine which tools to show
     let tools_to_show: Vec<String> = if let Some(pt) = preferred_tools {
@@ -151,7 +153,9 @@ pub async fn apply_skills_tool_toggle<R: Runtime>(
     let state = app.state::<DbState>();
 
     // Get custom tools for adapter lookup
-    let custom_tools = skill_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
 
     // Get skill by ID
     let skill = skill_store::get_skill_by_id(&state, skill_id)
@@ -179,8 +183,8 @@ pub async fn apply_skills_tool_toggle<R: Runtime>(
         }
     } else {
         // Currently not synced -> sync
-        let tool_root = resolve_runtime_skills_path(&runtime_adapter)
-            .map_err(|e| format!("{:#}", e))?;
+        let tool_root =
+            resolve_runtime_skills_path(&runtime_adapter).map_err(|e| format!("{:#}", e))?;
         let target = tool_root.join(&skill.name);
 
         // Sync with overwrite (tray menu operates quickly, no confirmation dialog)

@@ -23,7 +23,9 @@ pub fn get_opencode_mcp_config_path_sync() -> Option<PathBuf> {
     }
 
     // 2. Check shell configuration files
-    if let Some(shell_path) = crate::coding::open_code::shell_env::get_env_from_shell_config("OPENCODE_CONFIG") {
+    if let Some(shell_path) =
+        crate::coding::open_code::shell_env::get_env_from_shell_config("OPENCODE_CONFIG")
+    {
         if !shell_path.is_empty() {
             return Some(PathBuf::from(shell_path));
         }

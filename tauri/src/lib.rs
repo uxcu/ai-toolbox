@@ -54,8 +54,7 @@ fn open_folder(path: String) -> Result<(), String> {
 
     // Create directory if it doesn't exist
     if !folder.exists() {
-        fs::create_dir_all(folder)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+        fs::create_dir_all(folder).map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
     // Open the folder using system default file manager
@@ -258,7 +257,8 @@ fn write_wayland_webview_workaround_level(level: u8) {
 }
 
 #[cfg(target_os = "linux")]
-fn try_acquire_single_instance_lock_with_optional_retry() -> Result<single_instance::SingleInstanceLock, String> {
+fn try_acquire_single_instance_lock_with_optional_retry(
+) -> Result<single_instance::SingleInstanceLock, String> {
     if std::env::var_os("AI_TOOLBOX_RESTART_WAIT_LOCK").is_none() {
         return single_instance::try_acquire_lock();
     }
@@ -292,58 +292,61 @@ fn setup_linux_wayland_egl_failure_monitor(
     }
 
     let egl_failure_flag_clone = egl_failure_flag.clone();
-    let Ok(thread_builder) = std::thread::Builder::new().name("egl-stderr-monitor".to_string()).spawn(move || unsafe {
-        let mut pipe_fds = [0; 2];
-        if libc::pipe(pipe_fds.as_mut_ptr()) != 0 {
-            return;
-        }
+    let Ok(thread_builder) = std::thread::Builder::new()
+        .name("egl-stderr-monitor".to_string())
+        .spawn(move || unsafe {
+            let mut pipe_fds = [0; 2];
+            if libc::pipe(pipe_fds.as_mut_ptr()) != 0 {
+                return;
+            }
 
-        let read_fd = pipe_fds[0];
-        let write_fd = pipe_fds[1];
+            let read_fd = pipe_fds[0];
+            let write_fd = pipe_fds[1];
 
-        let original_stderr_fd = libc::dup(libc::STDERR_FILENO);
-        if original_stderr_fd < 0 {
-            libc::close(read_fd);
+            let original_stderr_fd = libc::dup(libc::STDERR_FILENO);
+            if original_stderr_fd < 0 {
+                libc::close(read_fd);
+                libc::close(write_fd);
+                return;
+            }
+
+            if libc::dup2(write_fd, libc::STDERR_FILENO) < 0 {
+                libc::close(original_stderr_fd);
+                libc::close(read_fd);
+                libc::close(write_fd);
+                return;
+            }
             libc::close(write_fd);
-            return;
-        }
 
-        if libc::dup2(write_fd, libc::STDERR_FILENO) < 0 {
-            libc::close(original_stderr_fd);
-            libc::close(read_fd);
-            libc::close(write_fd);
-            return;
-        }
-        libc::close(write_fd);
+            let mut original_stderr = std::fs::File::from_raw_fd(original_stderr_fd);
+            let mut reader = std::fs::File::from_raw_fd(read_fd);
 
-        let mut original_stderr = std::fs::File::from_raw_fd(original_stderr_fd);
-        let mut reader = std::fs::File::from_raw_fd(read_fd);
+            let mut buf = [0u8; 4096];
+            let mut carry = String::new();
+            loop {
+                let Ok(n) = reader.read(&mut buf) else { break };
+                if n == 0 {
+                    break;
+                }
 
-        let mut buf = [0u8; 4096];
-        let mut carry = String::new();
-        loop {
-            let Ok(n) = reader.read(&mut buf) else { break };
-            if n == 0 {
-                break;
+                let chunk = &buf[..n];
+                let _ = original_stderr.write_all(chunk);
+                let text = String::from_utf8_lossy(chunk);
+
+                carry.push_str(&text);
+                if carry.contains("Could not create default EGL display")
+                    || carry.contains("EGL_BAD_PARAMETER")
+                {
+                    egl_failure_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+
+                if carry.len() > 4096 {
+                    let keep_from = carry.len().saturating_sub(2048);
+                    carry.drain(..keep_from);
+                }
             }
-
-            let chunk = &buf[..n];
-            let _ = original_stderr.write_all(chunk);
-            let text = String::from_utf8_lossy(chunk);
-
-            carry.push_str(&text);
-            if carry.contains("Could not create default EGL display")
-                || carry.contains("EGL_BAD_PARAMETER")
-            {
-                egl_failure_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
-
-            if carry.len() > 4096 {
-                let keep_from = carry.len().saturating_sub(2048);
-                carry.drain(..keep_from);
-            }
-        }
-    }) else {
+        })
+    else {
         return egl_failure_flag;
     };
 
@@ -361,8 +364,8 @@ fn start_linux_wayland_webview_auto_downgrade_watchdog(
     use std::sync::atomic::Ordering;
     use tokio::sync::watch;
 
-    let egl_failure_flag = egl_failure_flag
-        .unwrap_or_else(|| Arc::new(std::sync::atomic::AtomicBool::new(false)));
+    let egl_failure_flag =
+        egl_failure_flag.unwrap_or_else(|| Arc::new(std::sync::atomic::AtomicBool::new(false)));
 
     info!(
         "Starting Wayland webview auto-downgrade watchdog at level {}",
@@ -471,7 +474,9 @@ fn start_linux_wayland_webview_auto_downgrade_watchdog(
 #[cfg(target_os = "linux")]
 fn setup_linux_wayland_webview_workaround() -> u8 {
     if std::env::var_os("AI_TOOLBOX_DISABLE_WAYLAND_WEBVIEW_WORKAROUND").is_some() {
-        info!("Wayland webview workaround disabled via AI_TOOLBOX_DISABLE_WAYLAND_WEBVIEW_WORKAROUND");
+        info!(
+            "Wayland webview workaround disabled via AI_TOOLBOX_DISABLE_WAYLAND_WEBVIEW_WORKAROUND"
+        );
         return 0;
     }
 
@@ -573,8 +578,9 @@ pub fn run() {
     // Linux: Try to acquire file-based single instance lock as fallback
     // This is needed because D-Bus based detection may not work in all environments
     #[cfg(target_os = "linux")]
-    let single_instance_lock_holder: Arc<StdMutex<Option<single_instance::SingleInstanceLock>>> =
-        Arc::new(StdMutex::new(None));
+    let single_instance_lock_holder: Arc<
+        StdMutex<Option<single_instance::SingleInstanceLock>>,
+    > = Arc::new(StdMutex::new(None));
 
     #[cfg(target_os = "linux")]
     {
@@ -636,7 +642,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 use tauri::{TitleBarStyle, WebviewUrl, WebviewWindowBuilder};
-                
+
                 let _window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                     .title("AI Toolbox")
                     .inner_size(1200.0, 800.0)
@@ -647,11 +653,11 @@ pub fn run() {
                     .build()
                     .expect("Failed to create main window");
             }
-            
+
             #[cfg(not(target_os = "macos"))]
             {
                 use tauri::{WebviewUrl, WebviewWindowBuilder};
-                
+
                 let _window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                     .title("AI Toolbox")
                     .inner_size(1200.0, 800.0)
@@ -750,23 +756,22 @@ pub fn run() {
                         let _ = tray::refresh_tray_menus(&app).await;
                     });
                 });
-                
+
                 // Keep this async block alive forever to prevent listener from being dropped
                 std::future::pending::<()>().await;
             });
-            
-            
+
             // Enable auto-launch if setting is true
             let app_handle_clone = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let db_state = app_handle_clone.state::<DbState>();
                 let db = db_state.0.lock().await;
-                
+
                 let mut result = db
                     .query("SELECT * OMIT id FROM settings:`app` LIMIT 1")
                     .await
                     .ok();
-                
+
                 if let Some(ref mut res) = result {
                     let records: Result<Vec<serde_json::Value>, _> = res.take(0);
                     if let Ok(records) = records {
@@ -775,7 +780,7 @@ pub fn run() {
                                 .get("launch_on_startup")
                                 .and_then(|v| v.as_bool())
                                 .unwrap_or(true);
-                            
+
                             if launch_on_startup {
                                 let _ = auto_launch::enable_auto_launch();
                             }
@@ -797,7 +802,12 @@ pub fn run() {
                         tauri::async_runtime::spawn(async move {
                             // Re-obtain state inside the spawned task
                             let db_state = app.state::<crate::DbState>();
-                            let result = coding::wsl::wsl_sync(db_state, app.clone(), Some("opencode".to_string())).await;
+                            let result = coding::wsl::wsl_sync(
+                                db_state,
+                                app.clone(),
+                                Some("opencode".to_string()),
+                            )
+                            .await;
                             // Ignore result - fire and forget
                             let _ = result;
                         });
@@ -817,7 +827,12 @@ pub fn run() {
                         tauri::async_runtime::spawn(async move {
                             // Re-obtain state inside the spawned task
                             let db_state = app.state::<crate::DbState>();
-                            let result = coding::wsl::wsl_sync(db_state, app.clone(), Some("claude".to_string())).await;
+                            let result = coding::wsl::wsl_sync(
+                                db_state,
+                                app.clone(),
+                                Some("claude".to_string()),
+                            )
+                            .await;
                             // Ignore result - fire and forget
                             let _ = result;
                         });
@@ -837,7 +852,12 @@ pub fn run() {
                         tauri::async_runtime::spawn(async move {
                             // Re-obtain state inside the spawned task
                             let db_state = app.state::<crate::DbState>();
-                            let result = coding::wsl::wsl_sync(db_state, app.clone(), Some("codex".to_string())).await;
+                            let result = coding::wsl::wsl_sync(
+                                db_state,
+                                app.clone(),
+                                Some("codex".to_string()),
+                            )
+                            .await;
                             // Ignore result - fire and forget
                             let _ = result;
                         });
@@ -909,12 +929,19 @@ pub fn run() {
 
                     loop {
                         let db_state = app_clone.state::<crate::DbState>();
-                        let days = coding::skills::cache_cleanup::get_git_cache_cleanup_days(&db_state).await;
+                        let days =
+                            coding::skills::cache_cleanup::get_git_cache_cleanup_days(&db_state)
+                                .await;
                         if days > 0 {
                             let max_age = Duration::from_secs((days as u64) * 86400);
-                            match coding::skills::cache_cleanup::cleanup_git_cache_dirs(&app_clone, max_age) {
+                            match coding::skills::cache_cleanup::cleanup_git_cache_dirs(
+                                &app_clone, max_age,
+                            ) {
                                 Ok(count) if count > 0 => {
-                                    info!("Git cache auto-cleanup: removed {} expired cache(s)", count);
+                                    info!(
+                                        "Git cache auto-cleanup: removed {} expired cache(s)",
+                                        count
+                                    );
                                 }
                                 Err(e) => {
                                     warn!("Git cache auto-cleanup failed: {}", e);
@@ -951,7 +978,12 @@ pub fn run() {
                         let db_state = app_clone.state::<crate::DbState>();
 
                         // Resync skills
-                        match coding::skills::commands::skills_resync_all(app_clone.clone(), db_state.clone()).await {
+                        match coding::skills::commands::skills_resync_all(
+                            app_clone.clone(),
+                            db_state.clone(),
+                        )
+                        .await
+                        {
                             Ok(synced) => {
                                 info!("Skills resync completed: {} items synced", synced.len());
                             }
@@ -961,10 +993,15 @@ pub fn run() {
                         }
 
                         // Resync MCP servers
-                        match coding::mcp::commands::mcp_sync_all(app_clone.clone(), db_state).await {
+                        match coding::mcp::commands::mcp_sync_all(app_clone.clone(), db_state).await
+                        {
                             Ok(results) => {
                                 let success_count = results.iter().filter(|r| r.success).count();
-                                info!("MCP resync completed: {}/{} succeeded", success_count, results.len());
+                                info!(
+                                    "MCP resync completed: {}/{} succeeded",
+                                    success_count,
+                                    results.len()
+                                );
                             }
                             Err(e) => {
                                 warn!("MCP resync failed: {}", e);
@@ -982,20 +1019,22 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app_handle = window.app_handle().clone();
-                
+
                 // Check minimize_to_tray_on_close setting with default value
                 let minimize_to_tray = {
                     let db_state = app_handle.state::<DbState>();
                     let db = db_state.0.blocking_lock();
-                    
+
                     // Query settings synchronously using block_on
                     let query_result = tauri::async_runtime::block_on(async {
-                        db.query("SELECT * OMIT id FROM settings:`app` LIMIT 1").await
+                        db.query("SELECT * OMIT id FROM settings:`app` LIMIT 1")
+                            .await
                     });
-                    
+
                     match query_result {
                         Ok(mut res) => {
-                            let records: Result<Vec<serde_json::Value>, surrealdb::Error> = res.take(0);
+                            let records: Result<Vec<serde_json::Value>, surrealdb::Error> =
+                                res.take(0);
                             match records {
                                 Ok(records) => {
                                     if let Some(record) = records.first() {
@@ -1013,12 +1052,12 @@ pub fn run() {
                         Err(_) => true,
                     }
                 };
-                
+
                 if minimize_to_tray {
                     // Hide window instead of closing
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.hide();
-                        
+
                         // macOS: Switch to Accessory mode to hide from Dock
                         #[cfg(target_os = "macos")]
                         {
@@ -1077,7 +1116,7 @@ pub fn run() {
             coding::claude_code::get_claude_onboarding_status,
             coding::claude_code::apply_claude_onboarding_skip,
             coding::claude_code::clear_claude_onboarding_skip,
-// OpenCode
+            // OpenCode
             coding::open_code::get_opencode_config_path,
             coding::open_code::get_opencode_config_path_info,
             coding::open_code::read_opencode_config,
@@ -1221,6 +1260,10 @@ pub fn run() {
             coding::mcp::mcp_upsert_favorite,
             coding::mcp::mcp_delete_favorite,
             coding::mcp::mcp_init_default_favorites,
+            // CC-Switch Import
+            coding::cc_switch::detect_cc_switch_installation,
+            coding::cc_switch::import_cc_switch_config,
+            coding::cc_switch::preview_cc_switch_config,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

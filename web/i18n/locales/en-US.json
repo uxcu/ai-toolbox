@@ -243,10 +243,13 @@
       "downloadingUpdate": "Downloading and installing update...",
       "downloadingProgress": "Downloaded {{progress}}%",
       "downloadingComplete": "Download complete, installing...",
-      "installingUpdate": "Installing update...",
-      "viewReleaseNotes": "View Release Notes"
-    }
-  },
+"installingUpdate": "Installing update...",
+        "viewReleaseNotes": "View Release Notes"
+      },
+      "ccSwitch": {
+        "import": "Import CC-Switch Config"
+      }
+    },
   "theme": {
     "light": "Light",
     "dark": "Dark",

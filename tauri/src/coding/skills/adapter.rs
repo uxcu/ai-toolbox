@@ -1,8 +1,8 @@
 use serde_json::Value;
 
-use crate::coding::db_extract_id;
-use super::types::{Skill, SkillPreferences, SkillRepo, SkillTarget};
 use super::tool_adapters::CustomTool;
+use super::types::{Skill, SkillPreferences, SkillRepo, SkillTarget};
+use crate::coding::db_extract_id;
 
 // ==================== Skill ====================
 
@@ -51,15 +51,24 @@ pub fn from_db_skill(value: Value) -> Skill {
             .get("content_hash")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
-        created_at: value.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0),
-        updated_at: value.get("updated_at").and_then(|v| v.as_i64()).unwrap_or(0),
+        created_at: value
+            .get("created_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
+        updated_at: value
+            .get("updated_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
         last_sync_at: value.get("last_sync_at").and_then(|v| v.as_i64()),
         status: value
             .get("status")
             .and_then(|v| v.as_str())
             .unwrap_or("active")
             .to_string(),
-        sort_index: value.get("sort_index").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+        sort_index: value
+            .get("sort_index")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0) as i32,
         enabled_tools,
         sync_details,
     }
@@ -205,8 +214,14 @@ pub fn from_db_skill_repo(value: Value) -> SkillRepo {
             .and_then(|v| v.as_str())
             .unwrap_or("main")
             .to_string(),
-        enabled: value.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
-        created_at: value.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0),
+        enabled: value
+            .get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
+        created_at: value
+            .get("created_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
     }
 }
 
@@ -269,7 +284,10 @@ pub fn from_db_skill_preferences(value: Value) -> SkillPreferences {
             .get("show_skills_in_tray")
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
-        updated_at: value.get("updated_at").and_then(|v| v.as_i64()).unwrap_or(0),
+        updated_at: value
+            .get("updated_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
     }
 }
 
@@ -310,8 +328,14 @@ pub fn from_db_custom_tool(value: Value) -> CustomTool {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
-        created_at: value.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0),
-        force_copy: value.get("force_copy").and_then(|v| v.as_bool()).unwrap_or(false),
+        created_at: value
+            .get("created_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
+        force_copy: value
+            .get("force_copy")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
     }
 }
 

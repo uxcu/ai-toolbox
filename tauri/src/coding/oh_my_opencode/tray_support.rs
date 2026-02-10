@@ -55,7 +55,10 @@ pub async fn get_oh_my_opencode_tray_data<R: Runtime>(
                 if let (Some(id), Some(name), Some(is_applied), sort_index) = (
                     record.get("id").and_then(|v| v.as_str()),
                     record.get("name").and_then(|v| v.as_str()),
-                    record.get("is_applied").or_else(|| record.get("isApplied")).and_then(|v| v.as_bool()),
+                    record
+                        .get("is_applied")
+                        .or_else(|| record.get("isApplied"))
+                        .and_then(|v| v.as_bool()),
                     record
                         .get("sort_index")
                         .or_else(|| record.get("sortIndex"))

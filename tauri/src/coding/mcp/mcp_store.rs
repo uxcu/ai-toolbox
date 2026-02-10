@@ -4,13 +4,13 @@
 
 use serde_json::Value;
 
-use crate::DbState;
 use super::adapter::{
-    from_db_mcp_preferences, from_db_mcp_server, from_db_favorite_mcp, remove_sync_detail, set_sync_detail,
-    to_clean_mcp_server_payload, to_mcp_preferences_payload,
+    from_db_favorite_mcp, from_db_mcp_preferences, from_db_mcp_server, remove_sync_detail,
+    set_sync_detail, to_clean_mcp_server_payload, to_mcp_preferences_payload,
 };
 use super::command_normalize;
-use super::types::{McpPreferences, McpServer, McpSyncDetail, FavoriteMcp, now_ms};
+use super::types::{now_ms, FavoriteMcp, McpPreferences, McpServer, McpSyncDetail};
+use crate::DbState;
 
 // ==================== MCP Server CRUD ====================
 
@@ -28,7 +28,10 @@ pub async fn get_mcp_servers(state: &DbState) -> Result<Vec<McpServer>, String> 
 }
 
 /// Get a single MCP server by ID
-pub async fn get_mcp_server_by_id(state: &DbState, server_id: &str) -> Result<Option<McpServer>, String> {
+pub async fn get_mcp_server_by_id(
+    state: &DbState,
+    server_id: &str,
+) -> Result<Option<McpServer>, String> {
     let db = state.0.lock().await;
     let server_id_owned = server_id.to_string();
 
@@ -45,14 +48,15 @@ pub async fn get_mcp_server_by_id(state: &DbState, server_id: &str) -> Result<Op
 }
 
 /// Get MCP server by name
-pub async fn get_mcp_server_by_name(state: &DbState, name: &str) -> Result<Option<McpServer>, String> {
+pub async fn get_mcp_server_by_name(
+    state: &DbState,
+    name: &str,
+) -> Result<Option<McpServer>, String> {
     let db = state.0.lock().await;
     let name_owned = name.to_string();
 
     let mut result = db
-        .query(
-            "SELECT *, type::string(id) as id FROM mcp_server WHERE name = $name LIMIT 1",
-        )
+        .query("SELECT *, type::string(id) as id FROM mcp_server WHERE name = $name LIMIT 1")
         .bind(("name", name_owned))
         .await
         .map_err(|e| format!("Failed to query MCP server by name: {}", e))?;
@@ -182,7 +186,11 @@ pub async fn update_sync_detail(
 }
 
 /// Remove sync detail for a specific tool
-pub async fn delete_sync_detail(state: &DbState, server_id: &str, tool: &str) -> Result<(), String> {
+pub async fn delete_sync_detail(
+    state: &DbState,
+    server_id: &str,
+    tool: &str,
+) -> Result<(), String> {
     let db = state.0.lock().await;
 
     // Get existing server
@@ -309,7 +317,10 @@ pub async fn get_favorite_mcps(state: &DbState) -> Result<Vec<FavoriteMcp>, Stri
 }
 
 /// Get a favorite MCP by name
-pub async fn get_favorite_mcp_by_name(state: &DbState, name: &str) -> Result<Option<FavoriteMcp>, String> {
+pub async fn get_favorite_mcp_by_name(
+    state: &DbState,
+    name: &str,
+) -> Result<Option<FavoriteMcp>, String> {
     let db = state.0.lock().await;
     let name_owned = name.to_string();
 

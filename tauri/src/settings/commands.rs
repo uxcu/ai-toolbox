@@ -1,7 +1,7 @@
-use crate::db::DbState;
-use crate::auto_launch;
 use super::adapter;
 use super::types::AppSettings;
+use crate::auto_launch;
+use crate::db::DbState;
 
 /// Get settings from database using adapter layer for fault tolerance
 #[tauri::command]
@@ -70,8 +70,8 @@ pub fn get_auto_launch_status() -> Result<bool, String> {
 #[tauri::command]
 pub fn restart_app() -> Result<(), String> {
     // Get the current executable path
-    let current_exe = std::env::current_exe()
-        .map_err(|e| format!("Failed to get current executable: {}", e))?;
+    let current_exe =
+        std::env::current_exe().map_err(|e| format!("Failed to get current executable: {}", e))?;
 
     // Spawn a new instance and exit the current one
     #[cfg(target_os = "windows")]

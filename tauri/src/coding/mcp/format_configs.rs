@@ -13,11 +13,7 @@ use crate::coding::tools::McpFormatConfig;
 /// - `env` -> `environment`
 /// - Requires `enabled: true` field
 pub const OPENCODE_FORMAT: McpFormatConfig = McpFormatConfig {
-    type_mappings: &[
-        ("stdio", "local"),
-        ("sse", "remote"),
-        ("http", "remote"),
-    ],
+    type_mappings: &[("stdio", "local"), ("sse", "remote"), ("http", "remote")],
     merge_command_args: true,
     env_field: "environment",
     requires_enabled: true,

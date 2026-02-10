@@ -1,9 +1,12 @@
-use super::{sync, adapter};
-use super::types::{FileMapping, SyncProgress, SyncResult, WSLErrorResult, WSLDetectResult, WSLStatusResult, WSLSyncConfig};
+use super::types::{
+    FileMapping, SyncProgress, SyncResult, WSLDetectResult, WSLErrorResult, WSLStatusResult,
+    WSLSyncConfig,
+};
+use super::{adapter, sync};
+use crate::coding::{oh_my_opencode, oh_my_opencode_slim, open_code};
 use crate::db::DbState;
-use crate::coding::{open_code, oh_my_opencode, oh_my_opencode_slim};
-use tauri::Emitter;
 use chrono::Local;
+use tauri::Emitter;
 
 // ============================================================================
 // WSL Detection Commands
@@ -23,7 +26,11 @@ pub fn wsl_check_distro(distro: String) -> WSLErrorResult {
             let available = distros.contains(&distro);
             WSLErrorResult {
                 available,
-                error: if available { None } else { Some(format!("Distro '{}' not found", distro)) },
+                error: if available {
+                    None
+                } else {
+                    Some(format!("Distro '{}' not found", distro))
+                },
             }
         }
         Err(e) => WSLErrorResult {
@@ -74,12 +81,10 @@ pub async fn wsl_get_config(state: tauri::State<'_, DbState>) -> Result<WSLSyncC
         .take(0);
 
     let file_mappings = match mappings_result {
-        Ok(records) => {
-            records
-                .into_iter()
-                .map(adapter::mapping_from_db_value)
-                .collect()
-        }
+        Ok(records) => records
+            .into_iter()
+            .map(adapter::mapping_from_db_value)
+            .collect(),
         Err(_) => vec![],
     };
 
@@ -267,13 +272,16 @@ pub(super) async fn do_full_sync(
     // Emit initial progress for file mappings
     let enabled_mappings: Vec<_> = config.file_mappings.iter().filter(|m| m.enabled).collect();
     let total_files = enabled_mappings.len() as u32;
-    let _ = app.emit("wsl-sync-progress", SyncProgress {
-        phase: "files".to_string(),
-        current_item: "准备中...".to_string(),
-        current: 0,
-        total: total_files,
-        message: format!("文件同步: 0/{}", total_files),
-    });
+    let _ = app.emit(
+        "wsl-sync-progress",
+        SyncProgress {
+            phase: "files".to_string(),
+            current_item: "准备中...".to_string(),
+            current: 0,
+            total: total_files,
+            message: format!("文件同步: 0/{}", total_files),
+        },
+    );
 
     // Dynamically resolve config file paths for opencode and oh-my-opencode
     let file_mappings = resolve_dynamic_paths(config.file_mappings.clone());
@@ -321,15 +329,18 @@ fn sync_mappings_with_progress(
 
     for (idx, mapping) in filtered_mappings.iter().enumerate() {
         let current = (idx + 1) as u32;
-        
+
         // Emit progress
-        let _ = app.emit("wsl-sync-progress", SyncProgress {
-            phase: "files".to_string(),
-            current_item: mapping.name.clone(),
-            current,
-            total,
-            message: format!("文件同步: {}/{} - {}", current, total, mapping.name),
-        });
+        let _ = app.emit(
+            "wsl-sync-progress",
+            SyncProgress {
+                phase: "files".to_string(),
+                current_item: mapping.name.clone(),
+                current,
+                total,
+                message: format!("文件同步: {}/{} - {}", current, total, mapping.name),
+            },
+        );
 
         match sync::sync_file_mapping(mapping, distro) {
             Ok(files) if files.is_empty() => {
@@ -486,50 +497,52 @@ pub fn wsl_open_folder(_distro: String) -> Result<(), String> {
 /// Dynamically resolve config file paths for opencode and oh-my-opencode
 /// This ensures we sync the actual config file format (.jsonc or .json) being used
 pub(super) fn resolve_dynamic_paths(mappings: Vec<FileMapping>) -> Vec<FileMapping> {
-    mappings.into_iter().map(|mut mapping| {
-        match mapping.id.as_str() {
-            "opencode-main" => {
-                // Use dynamic path detection for OpenCode main config
-                if let Ok(actual_path) = open_code::get_default_config_path() {
-                    // Extract filename from the actual path
-                    if let Some(filename) = std::path::Path::new(&actual_path).file_name() {
-                        let filename_str = filename.to_string_lossy();
-                        mapping.windows_path = actual_path.clone();
-                        mapping.wsl_path = format!("~/.config/opencode/{}", filename_str);
+    mappings
+        .into_iter()
+        .map(|mut mapping| {
+            match mapping.id.as_str() {
+                "opencode-main" => {
+                    // Use dynamic path detection for OpenCode main config
+                    if let Ok(actual_path) = open_code::get_default_config_path() {
+                        // Extract filename from the actual path
+                        if let Some(filename) = std::path::Path::new(&actual_path).file_name() {
+                            let filename_str = filename.to_string_lossy();
+                            mapping.windows_path = actual_path.clone();
+                            mapping.wsl_path = format!("~/.config/opencode/{}", filename_str);
+                        }
                     }
                 }
-            }
-            "opencode-oh-my" => {
-                // Use dynamic path detection for Oh My OpenCode config
-                if let Ok(actual_path) = oh_my_opencode::get_oh_my_opencode_config_path() {
-                    if let Some(filename) = actual_path.file_name() {
-                        let filename_str = filename.to_string_lossy();
-                        mapping.windows_path = actual_path.to_string_lossy().to_string();
-                        mapping.wsl_path = format!("~/.config/opencode/{}", filename_str);
+                "opencode-oh-my" => {
+                    // Use dynamic path detection for Oh My OpenCode config
+                    if let Ok(actual_path) = oh_my_opencode::get_oh_my_opencode_config_path() {
+                        if let Some(filename) = actual_path.file_name() {
+                            let filename_str = filename.to_string_lossy();
+                            mapping.windows_path = actual_path.to_string_lossy().to_string();
+                            mapping.wsl_path = format!("~/.config/opencode/{}", filename_str);
+                        }
                     }
                 }
-            }
-            "opencode-oh-my-slim" => {
-                // Use dynamic path detection for Oh My OpenCode Slim config
-                if let Ok(actual_path) = oh_my_opencode_slim::get_oh_my_opencode_slim_config_path() {
-                    if let Some(filename) = actual_path.file_name() {
-                        let filename_str = filename.to_string_lossy();
-                        mapping.windows_path = actual_path.to_string_lossy().to_string();
-                        mapping.wsl_path = format!("~/.config/opencode/{}", filename_str);
+                "opencode-oh-my-slim" => {
+                    // Use dynamic path detection for Oh My OpenCode Slim config
+                    if let Ok(actual_path) =
+                        oh_my_opencode_slim::get_oh_my_opencode_slim_config_path()
+                    {
+                        if let Some(filename) = actual_path.file_name() {
+                            let filename_str = filename.to_string_lossy();
+                            mapping.windows_path = actual_path.to_string_lossy().to_string();
+                            mapping.wsl_path = format!("~/.config/opencode/{}", filename_str);
+                        }
                     }
                 }
+                _ => {}
             }
-            _ => {}
-        }
-        mapping
-    }).collect()
+            mapping
+        })
+        .collect()
 }
 
 /// Update sync status in database
-pub(super) async fn update_sync_status(
-    state: &DbState,
-    result: &SyncResult,
-) -> Result<(), String> {
+pub(super) async fn update_sync_status(state: &DbState, result: &SyncResult) -> Result<(), String> {
     let db = state.0.lock().await;
 
     let (status, error) = if result.success {

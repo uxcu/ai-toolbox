@@ -1,10 +1,10 @@
 use chrono::Local;
-use std::fs;
 use serde_json::Value;
+use std::fs;
 
-use crate::db::DbState;
 use super::adapter;
 use super::types::*;
+use crate::db::DbState;
 use tauri::Emitter;
 
 fn ensure_safe_record_id(id: &str) -> Result<&str, String> {
@@ -47,18 +47,14 @@ pub async fn list_oh_my_opencode_configs(
                 }
             }
 
-            let mut result: Vec<OhMyOpenCodeConfig> = records
-                .into_iter()
-                .map(adapter::from_db_value)
-                .collect();
+            let mut result: Vec<OhMyOpenCodeConfig> =
+                records.into_iter().map(adapter::from_db_value).collect();
             // Sort by sort_index (if set), then by name as fallback
-            result.sort_by(|a, b| {
-                match (a.sort_index, b.sort_index) {
-                    (Some(ai), Some(bi)) => ai.cmp(&bi),
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (None, None) => a.name.cmp(&b.name),
-                }
+            result.sort_by(|a, b| match (a.sort_index, b.sort_index) {
+                (Some(ai), Some(bi)) => ai.cmp(&bi),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => a.name.cmp(&b.name),
             });
             Ok(result)
         }
@@ -76,8 +72,7 @@ pub async fn list_oh_my_opencode_configs(
 /// Helper function to get oh-my-opencode config path
 /// Priority: .jsonc (if exists) → .json (if exists) → default .jsonc
 pub fn get_oh_my_opencode_config_path() -> Result<std::path::PathBuf, String> {
-    let home_dir = dirs::home_dir()
-        .ok_or("Failed to get home directory")?;
+    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
 
     let opencode_dir = home_dir.join(".config").join("opencode");
 
@@ -99,8 +94,8 @@ pub fn get_oh_my_opencode_config_path() -> Result<std::path::PathBuf, String> {
 /// This is used when the database is empty and we want to show the local config
 /// Returns a config with id "__local__" to indicate it's from local file
 fn load_temp_config_from_file() -> Result<OhMyOpenCodeConfig, String> {
-    let config_path = get_oh_my_opencode_config_path()
-        .map_err(|_| "Local config file not found".to_string())?;
+    let config_path =
+        get_oh_my_opencode_config_path().map_err(|_| "Local config file not found".to_string())?;
 
     if !config_path.exists() {
         return Err("No config file found".to_string());
@@ -150,7 +145,11 @@ fn load_temp_config_from_file() -> Result<OhMyOpenCodeConfig, String> {
         obj.remove("claudeCode");
     }
 
-    let other_fields_value = if other_fields.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+    let other_fields_value = if other_fields
+        .as_object()
+        .map(|o| o.is_empty())
+        .unwrap_or(true)
+    {
         None
     } else {
         Some(other_fields)
@@ -174,8 +173,8 @@ fn load_temp_config_from_file() -> Result<OhMyOpenCodeConfig, String> {
 /// Load a temporary global config from local file without writing to database
 /// Returns a config with id "__local__" to indicate it's from local file
 fn load_temp_global_config_from_file() -> Result<OhMyOpenCodeGlobalConfig, String> {
-    let config_path = get_oh_my_opencode_config_path()
-        .map_err(|_| "Local config file not found".to_string())?;
+    let config_path =
+        get_oh_my_opencode_config_path().map_err(|_| "Local config file not found".to_string())?;
 
     if !config_path.exists() {
         return Err("No config file found".to_string());
@@ -259,7 +258,11 @@ fn load_temp_global_config_from_file() -> Result<OhMyOpenCodeGlobalConfig, Strin
         obj.remove("claudeCode");
     }
 
-    let other_fields_value = if other_fields.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+    let other_fields_value = if other_fields
+        .as_object()
+        .map(|o| o.is_empty())
+        .unwrap_or(true)
+    {
         None
     } else {
         Some(other_fields)
@@ -347,7 +350,9 @@ pub async fn update_oh_my_opencode_config(
     let db = state.0.lock().await;
 
     // ID is required for update
-    let config_id = input.id.ok_or_else(|| "ID is required for update".to_string())?;
+    let config_id = input
+        .id
+        .ok_or_else(|| "ID is required for update".to_string())?;
     let safe_config_id = ensure_safe_record_id(&config_id)?;
 
     // Check if config exists using type::thing
@@ -382,7 +387,8 @@ pub async fn update_oh_my_opencode_config(
         .take(0);
 
     // Extract fields from the query result
-    let (is_applied_value, is_disabled_value, created_at, sort_index_value) = match existing_result {
+    let (is_applied_value, is_disabled_value, created_at, sort_index_value) = match existing_result
+    {
         Ok(records) => {
             if let Some(record) = records.first() {
                 let is_applied = record
@@ -409,9 +415,7 @@ pub async fn update_oh_my_opencode_config(
                 (false, false, Local::now().to_rfc3339(), None)
             }
         }
-        Err(_) => {
-            (false, false, Local::now().to_rfc3339(), None)
-        }
+        Err(_) => (false, false, Local::now().to_rfc3339(), None),
     };
 
     let content = OhMyOpenCodeConfigContent {
@@ -432,10 +436,13 @@ pub async fn update_oh_my_opencode_config(
     // This is necessary because SurrealDB may have enum<bool> type issues with is_applied field
     let json_str = serde_json::to_string(&json_data)
         .map_err(|e| format!("Failed to serialize json_data: {}", e))?;
-    
-    db.query(format!("UPDATE oh_my_opencode_config:`{}` CONTENT {}", safe_config_id, json_str))
-        .await
-        .map_err(|e| format!("Failed to update config: {}", e))?;
+
+    db.query(format!(
+        "UPDATE oh_my_opencode_config:`{}` CONTENT {}",
+        safe_config_id, json_str
+    ))
+    .await
+    .map_err(|e| format!("Failed to update config: {}", e))?;
 
     // 如果该配置当前是应用状态，立即重新写入到配置文件
     if is_applied_value {
@@ -521,7 +528,10 @@ pub async fn apply_config_to_file_public(
 
     // Check if config is disabled (P0-3 fix: Architect solution C)
     if agents_profile.is_disabled {
-        return Err(format!("Config '{}' is disabled and cannot be applied", config_id));
+        return Err(format!(
+            "Config '{}' is disabled and cannot be applied",
+            config_id
+        ));
     }
 
     // Get config path using unified function
@@ -537,7 +547,9 @@ pub async fn apply_config_to_file_public(
 
     // 获取 Global Config
     let global_records_result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM oh_my_opencode_global_config:`global` LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM oh_my_opencode_global_config:`global` LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to query global config: {}", e))?
         .take(0);
@@ -606,16 +618,28 @@ pub async fn apply_config_to_file_public(
         final_json.insert("sisyphus_agent".to_string(), sisyphus);
     }
     if let Some(disabled_agents) = global_config.disabled_agents {
-        final_json.insert("disabled_agents".to_string(), serde_json::json!(disabled_agents));
+        final_json.insert(
+            "disabled_agents".to_string(),
+            serde_json::json!(disabled_agents),
+        );
     }
     if let Some(disabled_mcps) = global_config.disabled_mcps {
-        final_json.insert("disabled_mcps".to_string(), serde_json::json!(disabled_mcps));
+        final_json.insert(
+            "disabled_mcps".to_string(),
+            serde_json::json!(disabled_mcps),
+        );
     }
     if let Some(disabled_hooks) = global_config.disabled_hooks {
-        final_json.insert("disabled_hooks".to_string(), serde_json::json!(disabled_hooks));
+        final_json.insert(
+            "disabled_hooks".to_string(),
+            serde_json::json!(disabled_hooks),
+        );
     }
     if let Some(disabled_skills) = global_config.disabled_skills {
-        final_json.insert("disabled_skills".to_string(), serde_json::json!(disabled_skills));
+        final_json.insert(
+            "disabled_skills".to_string(),
+            serde_json::json!(disabled_skills),
+        );
     }
     if let Some(lsp) = global_config.lsp {
         final_json.insert("lsp".to_string(), lsp);
@@ -627,7 +651,10 @@ pub async fn apply_config_to_file_public(
         final_json.insert("background_task".to_string(), background_task);
     }
     if let Some(browser_automation_engine) = global_config.browser_automation_engine {
-        final_json.insert("browser_automation_engine".to_string(), browser_automation_engine);
+        final_json.insert(
+            "browser_automation_engine".to_string(),
+            browser_automation_engine,
+        );
     }
     if let Some(claude_code) = global_config.claude_code {
         final_json.insert("claude_code".to_string(), claude_code);
@@ -781,7 +808,8 @@ pub async fn toggle_oh_my_opencode_config_disabled(
 
     if let Ok(records) = records_result {
         if let Some(config_value) = records.first() {
-            let is_applied = adapter::get_bool_compat(config_value, "is_applied", "isApplied", false);
+            let is_applied =
+                adapter::get_bool_compat(config_value, "is_applied", "isApplied", false);
             if is_applied {
                 // Re-apply config to update files (will check is_disabled internally)
                 apply_config_internal(&db, &app, &config_id, false).await?;
@@ -808,8 +836,7 @@ pub async fn get_oh_my_opencode_config_path_info() -> Result<ConfigPathInfo, Str
 /// Returns true if ~/.config/opencode/oh-my-opencode.jsonc or .json exists
 #[tauri::command]
 pub async fn check_oh_my_opencode_config_exists() -> Result<bool, String> {
-    let home_dir = dirs::home_dir()
-        .ok_or("Failed to get home directory")?;
+    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
 
     let opencode_dir = home_dir.join(".config").join("opencode");
     let jsonc_path = opencode_dir.join("oh-my-opencode.jsonc");
@@ -830,7 +857,9 @@ pub async fn get_oh_my_opencode_global_config(
     let db = state.0.lock().await;
 
     let records_result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM oh_my_opencode_global_config:`global` LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM oh_my_opencode_global_config:`global` LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to query global config: {}", e))?
         .take(0);
@@ -947,7 +976,9 @@ pub async fn save_oh_my_opencode_global_config(
 
     // 从数据库读取刚保存的配置
     let records_result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM oh_my_opencode_global_config:`global` LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM oh_my_opencode_global_config:`global` LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to query saved global config: {}", e))?
         .take(0);
@@ -1059,7 +1090,11 @@ pub async fn save_oh_my_opencode_local_config(
     let global_browser_automation_engine = global_input
         .as_ref()
         .and_then(|g| g.browser_automation_engine.clone())
-        .or_else(|| base_global.as_ref().and_then(|g| g.browser_automation_engine.clone()));
+        .or_else(|| {
+            base_global
+                .as_ref()
+                .and_then(|g| g.browser_automation_engine.clone())
+        });
     let global_claude_code = global_input
         .as_ref()
         .and_then(|g| g.claude_code.clone())

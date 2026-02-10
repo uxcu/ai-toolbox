@@ -7,8 +7,8 @@ use super::adapter::{
     parse_sync_details, remove_sync_detail, set_sync_detail, to_clean_skill_payload,
     to_skill_preferences_payload, to_skill_repo_payload,
 };
-use super::types::{now_ms, Skill, SkillPreferences, SkillRepo, SkillTarget};
 use super::tool_adapters::CustomTool;
+use super::types::{now_ms, Skill, SkillPreferences, SkillRepo, SkillTarget};
 
 // ==================== Skill CRUD ====================
 
@@ -90,9 +90,7 @@ pub async fn get_skill_by_name(state: &DbState, name: &str) -> Result<Option<Ski
     let name_owned = name.to_string();
 
     let mut result = db
-        .query(
-            "SELECT *, type::string(id) as id FROM skill WHERE name = $name LIMIT 1",
-        )
+        .query("SELECT *, type::string(id) as id FROM skill WHERE name = $name LIMIT 1")
         .bind(("name", name_owned))
         .await
         .map_err(|e| format!("Failed to query skill by name: {}", e))?;
@@ -117,7 +115,10 @@ pub async fn delete_skill(state: &DbState, skill_id: &str) -> Result<(), String>
 // ==================== Skill sync_details operations ====================
 
 /// Get all targets for a specific skill (parsed from sync_details)
-pub async fn get_skill_targets(state: &DbState, skill_id: &str) -> Result<Vec<SkillTarget>, String> {
+pub async fn get_skill_targets(
+    state: &DbState,
+    skill_id: &str,
+) -> Result<Vec<SkillTarget>, String> {
     let skill = get_skill_by_id(state, skill_id).await?;
     Ok(skill.map(|s| parse_sync_details(&s)).unwrap_or_default())
 }
@@ -177,7 +178,11 @@ pub async fn upsert_skill_target(
 }
 
 /// Delete a skill target (remove tool entry from sync_details)
-pub async fn delete_skill_target(state: &DbState, skill_id: &str, tool: &str) -> Result<(), String> {
+pub async fn delete_skill_target(
+    state: &DbState,
+    skill_id: &str,
+    tool: &str,
+) -> Result<(), String> {
     let db = state.0.lock().await;
 
     // Get existing skill
@@ -283,7 +288,10 @@ pub async fn get_skill_preferences(state: &DbState) -> Result<SkillPreferences, 
 }
 
 /// Save skill preferences (singleton record)
-pub async fn save_skill_preferences(state: &DbState, prefs: &SkillPreferences) -> Result<(), String> {
+pub async fn save_skill_preferences(
+    state: &DbState,
+    prefs: &SkillPreferences,
+) -> Result<(), String> {
     let db = state.0.lock().await;
     let payload = to_skill_preferences_payload(prefs);
 

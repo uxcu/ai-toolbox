@@ -1,12 +1,11 @@
+use super::types::{AppSettings, S3Config, WebDAVConfig};
 /**
  * Settings Adapter Layer
- * 
+ *
  * Provides fault-tolerant conversion between database JSON and Rust types.
  * This layer ensures backward compatibility and eliminates version conflicts.
  */
-
 use serde_json::{json, Value};
-use super::types::{AppSettings, WebDAVConfig, S3Config};
 
 /// Convert database JSON Value to AppSettings with fault tolerance
 /// Missing fields will use default values, never panics
@@ -50,22 +49,16 @@ fn get_str(value: &Value, key: &str, default: &str) -> String {
 }
 
 fn get_opt_str(value: &Value, key: &str) -> Option<String> {
-    value
-        .get(key)
-        .and_then(|v| v.as_str())
-        .map(String::from)
+    value.get(key).and_then(|v| v.as_str()).map(String::from)
 }
 
 fn get_bool(value: &Value, key: &str, default: bool) -> bool {
-    value
-        .get(key)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(default)
+    value.get(key).and_then(|v| v.as_bool()).unwrap_or(default)
 }
 
 fn get_webdav(value: &Value) -> WebDAVConfig {
     let webdav = value.get("webdav");
-    
+
     if let Some(webdav) = webdav {
         WebDAVConfig {
             url: get_str(webdav, "url", ""),
@@ -80,7 +73,7 @@ fn get_webdav(value: &Value) -> WebDAVConfig {
 
 fn get_s3(value: &Value) -> S3Config {
     let s3 = value.get("s3");
-    
+
     if let Some(s3) = s3 {
         S3Config {
             access_key: get_str(s3, "access_key", ""),
@@ -99,4 +92,3 @@ fn get_s3(value: &Value) -> S3Config {
         S3Config::default()
     }
 }
-

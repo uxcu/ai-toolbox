@@ -4,7 +4,7 @@
 //! This module handles all data fetching and processing for tray menu display.
 
 use crate::coding::open_code::free_models;
-use crate::coding::open_code::types::{ReadConfigResult, UnifiedModelOption, OpenCodeProvider};
+use crate::coding::open_code::types::{OpenCodeProvider, ReadConfigResult, UnifiedModelOption};
 use crate::coding::open_code::{read_opencode_config, OpenCodeConfig};
 use indexmap::IndexMap;
 use tauri::{AppHandle, Manager, Runtime};
@@ -55,18 +55,24 @@ pub async fn get_opencode_tray_model_data<R: Runtime>(
     let result = read_opencode_config(app.state()).await?;
     let config = extract_config_or_default(result);
 
-    let current_main = config.model.as_ref().map(|s: &String| s.as_str()).unwrap_or("");
-    let current_small = config.small_model.as_ref().map(|s: &String| s.as_str()).unwrap_or("");
+    let current_main = config
+        .model
+        .as_ref()
+        .map(|s: &String| s.as_str())
+        .unwrap_or("");
+    let current_small = config
+        .small_model
+        .as_ref()
+        .map(|s: &String| s.as_str())
+        .unwrap_or("");
 
     // Read auth.json to get official provider ids
     let auth_channels = free_models::read_auth_channels();
 
     // Use the unified model fetching function
-    let unified_models = free_models::get_unified_models(
-        &*app.state(),
-        config.provider.as_ref(),
-        &auth_channels,
-    ).await;
+    let unified_models =
+        free_models::get_unified_models(&*app.state(), config.provider.as_ref(), &auth_channels)
+            .await;
 
     // Convert to TrayModelItem
     let items: Vec<TrayModelItem> = unified_models
@@ -234,7 +240,8 @@ fn get_disabled_plugins(selected_plugins: &[String]) -> Vec<String> {
 /// Check if OpenCode plugins should be shown in tray menu
 /// Reads the show_plugins_in_tray setting from common config
 pub async fn is_plugins_enabled_for_tray<R: Runtime>(app: &AppHandle<R>) -> bool {
-    if let Ok(Some(common_config)) = super::commands::get_opencode_common_config(app.state()).await {
+    if let Ok(Some(common_config)) = super::commands::get_opencode_common_config(app.state()).await
+    {
         return common_config.show_plugins_in_tray;
     }
     false

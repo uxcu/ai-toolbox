@@ -2,18 +2,30 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Runtime, State};
 
-use super::cache_cleanup::{cleanup_git_cache_dirs, get_git_cache_cleanup_days, set_git_cache_cleanup_days as set_cleanup_days, get_git_cache_ttl_secs};
-use super::central_repo::{ensure_central_repo, expand_home_path, resolve_central_repo_path, resolve_skill_central_path};
+use super::adapter::parse_sync_details;
+use super::cache_cleanup::{
+    cleanup_git_cache_dirs, get_git_cache_cleanup_days, get_git_cache_ttl_secs,
+    set_git_cache_cleanup_days as set_cleanup_days,
+};
+use super::central_repo::{
+    ensure_central_repo, expand_home_path, resolve_central_repo_path, resolve_skill_central_path,
+};
 use super::git_fetcher::set_proxy;
-use super::installer::{install_git_skill, install_git_skill_from_selection, install_local_skill, list_git_skills, update_managed_skill_from_source};
+use super::installer::{
+    install_git_skill, install_git_skill_from_selection, install_local_skill, list_git_skills,
+    update_managed_skill_from_source,
+};
 use super::onboarding::build_onboarding_plan;
 use super::skill_store;
 use super::sync_engine::{remove_path, sync_dir_for_tool_with_overwrite};
-use super::tool_adapters::{adapter_by_key, get_all_tool_adapters, is_tool_installed, resolve_runtime_skills_path, runtime_adapter_by_key};
-use super::adapter::parse_sync_details;
+use super::tool_adapters::{
+    adapter_by_key, get_all_tool_adapters, is_tool_installed, resolve_runtime_skills_path,
+    runtime_adapter_by_key,
+};
 use super::types::{
-    CustomTool, CustomToolDto, GitSkillCandidate, InstallResultDto, ManagedSkillDto, OnboardingPlan, SkillRepo, SkillRepoDto, SkillTarget,
-    SkillTargetDto, SyncResultDto, ToolInfoDto, ToolStatusDto, UpdateResultDto, now_ms,
+    now_ms, CustomTool, CustomToolDto, GitSkillCandidate, InstallResultDto, ManagedSkillDto,
+    OnboardingPlan, SkillRepo, SkillRepoDto, SkillTarget, SkillTargetDto, SyncResultDto,
+    ToolInfoDto, ToolStatusDto, UpdateResultDto,
 };
 use crate::http_client;
 use crate::DbState;
@@ -35,7 +47,9 @@ fn format_error(err: anyhow::Error) -> String {
 #[tauri::command]
 pub async fn skills_get_tool_status(state: State<'_, DbState>) -> Result<ToolStatusDto, String> {
     // Get custom tools
-    let custom_tools = skill_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
 
     // Get all adapters (built-in + custom)
     let all_adapters = get_all_tool_adapters(&custom_tools);
@@ -111,7 +125,9 @@ pub async fn skills_get_central_repo_path(
     app: tauri::AppHandle,
     state: State<'_, DbState>,
 ) -> Result<String, String> {
-    let path = resolve_central_repo_path(&app, &state).await.map_err(|e| format_error(e))?;
+    let path = resolve_central_repo_path(&app, &state)
+        .await
+        .map_err(|e| format_error(e))?;
     ensure_central_repo(&path).map_err(|e| format_error(e))?;
     Ok(path.to_string_lossy().to_string())
 }
@@ -128,9 +144,13 @@ pub async fn skills_set_central_repo_path(
     ensure_central_repo(&new_base).map_err(|e| format_error(e))?;
 
     // Save new path to settings
-    skill_store::set_setting(&state, "central_repo_path", new_base.to_string_lossy().as_ref())
-        .await
-        .map_err(|e| e)?;
+    skill_store::set_setting(
+        &state,
+        "central_repo_path",
+        new_base.to_string_lossy().as_ref(),
+    )
+    .await
+    .map_err(|e| e)?;
 
     Ok(new_base.to_string_lossy().to_string())
 }
@@ -143,7 +163,9 @@ pub async fn skills_get_managed_skills(
     state: State<'_, DbState>,
 ) -> Result<Vec<ManagedSkillDto>, String> {
     let skills = skill_store::get_managed_skills(&state).await?;
-    let central_dir = resolve_central_repo_path(&app, &state).await.map_err(|e| format_error(e))?;
+    let central_dir = resolve_central_repo_path(&app, &state)
+        .await
+        .map_err(|e| format_error(e))?;
 
     let mut result: Vec<ManagedSkillDto> = Vec::new();
     for skill in skills {
@@ -190,9 +212,14 @@ pub async fn skills_install_local(
     sourcePath: String,
     overwrite: Option<bool>,
 ) -> Result<InstallResultDto, String> {
-    let result = install_local_skill(&app, &state, std::path::Path::new(&sourcePath), overwrite.unwrap_or(false))
-        .await
-        .map_err(|e| format_error(e))?;
+    let result = install_local_skill(
+        &app,
+        &state,
+        std::path::Path::new(&sourcePath),
+        overwrite.unwrap_or(false),
+    )
+    .await
+    .map_err(|e| format_error(e))?;
 
     Ok(InstallResultDto {
         skill_id: result.skill_id,
@@ -211,9 +238,15 @@ pub async fn skills_install_git(
     branch: Option<String>,
     overwrite: Option<bool>,
 ) -> Result<InstallResultDto, String> {
-    let result = install_git_skill(&app, &state, &repoUrl, branch.as_deref(), overwrite.unwrap_or(false))
-        .await
-        .map_err(|e| format_error(e))?;
+    let result = install_git_skill(
+        &app,
+        &state,
+        &repoUrl,
+        branch.as_deref(),
+        overwrite.unwrap_or(false),
+    )
+    .await
+    .map_err(|e| format_error(e))?;
 
     Ok(InstallResultDto {
         skill_id: result.skill_id,
@@ -256,9 +289,16 @@ pub async fn skills_install_git_selection(
     branch: Option<String>,
     overwrite: Option<bool>,
 ) -> Result<InstallResultDto, String> {
-    let result = install_git_skill_from_selection(&app, &state, &repoUrl, &subpath, branch.as_deref(), overwrite.unwrap_or(false))
-        .await
-        .map_err(|e| format_error(e))?;
+    let result = install_git_skill_from_selection(
+        &app,
+        &state,
+        &repoUrl,
+        &subpath,
+        branch.as_deref(),
+        overwrite.unwrap_or(false),
+    )
+    .await
+    .map_err(|e| format_error(e))?;
 
     Ok(InstallResultDto {
         skill_id: result.skill_id,
@@ -282,32 +322,43 @@ pub async fn skills_sync_to_tool<R: Runtime>(
     overwrite: Option<bool>,
 ) -> Result<SyncResultDto, String> {
     // Get custom tools for runtime adapter lookup
-    let custom_tools = skill_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
 
-    let runtime_adapter = runtime_adapter_by_key(&tool, &custom_tools)
-        .ok_or_else(|| "unknown tool".to_string())?;
+    let runtime_adapter =
+        runtime_adapter_by_key(&tool, &custom_tools).ok_or_else(|| "unknown tool".to_string())?;
 
     // Skip install check for custom tools - they're always considered "installed"
     if !runtime_adapter.is_custom && !is_tool_installed(&runtime_adapter).unwrap_or(false) {
         let skills_path = resolve_runtime_skills_path(&runtime_adapter)
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
-        return Err(format!("TOOL_NOT_INSTALLED|{}|{}", runtime_adapter.key, skills_path));
+        return Err(format!(
+            "TOOL_NOT_INSTALLED|{}|{}",
+            runtime_adapter.key, skills_path
+        ));
     }
 
     let tool_root = resolve_runtime_skills_path(&runtime_adapter).map_err(|e| format_error(e))?;
     let target = tool_root.join(&name);
     let overwrite = overwrite.unwrap_or(false);
 
-    let result = sync_dir_for_tool_with_overwrite(&tool, std::path::Path::new(&sourcePath), &target, overwrite, runtime_adapter.force_copy)
-        .map_err(|err| {
-            let msg = err.to_string();
-            if msg.contains("target already exists") {
-                format!("TARGET_EXISTS|{}", target.to_string_lossy())
-            } else {
-                format_error(err)
-            }
-        })?;
+    let result = sync_dir_for_tool_with_overwrite(
+        &tool,
+        std::path::Path::new(&sourcePath),
+        &target,
+        overwrite,
+        runtime_adapter.force_copy,
+    )
+    .map_err(|err| {
+        let msg = err.to_string();
+        if msg.contains("target already exists") {
+            format!("TARGET_EXISTS|{}", target.to_string_lossy())
+        } else {
+            format_error(err)
+        }
+    })?;
 
     let record = SkillTarget {
         tool: tool.clone(),
@@ -337,7 +388,9 @@ pub async fn skills_unsync_from_tool<R: Runtime>(
     tool: String,
 ) -> Result<(), String> {
     // Get custom tools for runtime adapter lookup
-    let custom_tools = skill_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
 
     // If the tool is not installed, do nothing
     if let Some(adapter) = runtime_adapter_by_key(&tool, &custom_tools) {
@@ -403,7 +456,9 @@ pub async fn skills_delete_managed(
     let record = skill_store::get_skill_by_id(&state, &skillId).await?;
     if let Some(skill) = record {
         // Resolve central_path (handles cross-platform legacy paths)
-        let central_dir = resolve_central_repo_path(&app, &state).await.map_err(|e| format_error(e))?;
+        let central_dir = resolve_central_repo_path(&app, &state)
+            .await
+            .map_err(|e| format_error(e))?;
         let path = resolve_skill_central_path(&skill.central_path, &central_dir);
         if path.exists() {
             std::fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
@@ -432,14 +487,11 @@ pub async fn skills_get_onboarding_plan(
     state: State<'_, DbState>,
 ) -> Result<OnboardingPlan, String> {
     // Add 30 second timeout to prevent hanging on large directories
-    match tokio::time::timeout(
-        Duration::from_secs(30),
-        build_onboarding_plan(&app, &state),
-    )
-    .await
-    {
+    match tokio::time::timeout(Duration::from_secs(30), build_onboarding_plan(&app, &state)).await {
         Ok(result) => result.map_err(|e| format_error(e)),
-        Err(_) => Err("Scan timed out after 30 seconds. Please check your custom tool paths.".to_string()),
+        Err(_) => {
+            Err("Scan timed out after 30 seconds. Please check your custom tool paths.".to_string())
+        }
     }
 }
 
@@ -451,9 +503,14 @@ pub async fn skills_import_existing(
     sourcePath: String,
     overwrite: Option<bool>,
 ) -> Result<InstallResultDto, String> {
-    let result = install_local_skill(&app, &state, std::path::Path::new(&sourcePath), overwrite.unwrap_or(false))
-        .await
-        .map_err(|e| format_error(e))?;
+    let result = install_local_skill(
+        &app,
+        &state,
+        std::path::Path::new(&sourcePath),
+        overwrite.unwrap_or(false),
+    )
+    .await
+    .map_err(|e| format_error(e))?;
 
     Ok(InstallResultDto {
         skill_id: result.skill_id,
@@ -504,7 +561,9 @@ pub async fn skills_get_git_cache_path(app: tauri::AppHandle) -> Result<String, 
 // --- Preferred Tools ---
 
 #[tauri::command]
-pub async fn skills_get_preferred_tools(state: State<'_, DbState>) -> Result<Option<Vec<String>>, String> {
+pub async fn skills_get_preferred_tools(
+    state: State<'_, DbState>,
+) -> Result<Option<Vec<String>>, String> {
     let raw = skill_store::get_setting(&state, "preferred_tools_v1")
         .await
         .ok()
@@ -558,7 +617,9 @@ pub async fn skills_set_show_in_tray(
 // --- Custom Tools ---
 
 #[tauri::command]
-pub async fn skills_get_custom_tools(state: State<'_, DbState>) -> Result<Vec<CustomToolDto>, String> {
+pub async fn skills_get_custom_tools(
+    state: State<'_, DbState>,
+) -> Result<Vec<CustomToolDto>, String> {
     let tools = skill_store::get_custom_tools(&state).await?;
     Ok(tools
         .into_iter()
@@ -625,35 +686,31 @@ pub async fn skills_remove_custom_tool(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub async fn skills_check_custom_tool_path(
-    relativeSkillsDir: String,
-) -> Result<bool, String> {
-    use crate::coding::tools::path_utils::{normalize_path, to_storage_path, resolve_storage_path};
+pub async fn skills_check_custom_tool_path(relativeSkillsDir: String) -> Result<bool, String> {
+    use crate::coding::tools::path_utils::{normalize_path, resolve_storage_path, to_storage_path};
 
     // Normalize the path first to get the storage format
     let normalized = normalize_path(relativeSkillsDir.trim());
     let storage_path = to_storage_path(&normalized);
 
     // Resolve to absolute path
-    let path = resolve_storage_path(&storage_path)
-        .ok_or_else(|| "failed to resolve path".to_string())?;
+    let path =
+        resolve_storage_path(&storage_path).ok_or_else(|| "failed to resolve path".to_string())?;
     Ok(path.exists())
 }
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub async fn skills_create_custom_tool_path(
-    relativeSkillsDir: String,
-) -> Result<(), String> {
-    use crate::coding::tools::path_utils::{normalize_path, to_storage_path, resolve_storage_path};
+pub async fn skills_create_custom_tool_path(relativeSkillsDir: String) -> Result<(), String> {
+    use crate::coding::tools::path_utils::{normalize_path, resolve_storage_path, to_storage_path};
 
     // Normalize the path first to get the storage format
     let normalized = normalize_path(relativeSkillsDir.trim());
     let storage_path = to_storage_path(&normalized);
 
     // Resolve to absolute path
-    let path = resolve_storage_path(&storage_path)
-        .ok_or_else(|| "failed to resolve path".to_string())?;
+    let path =
+        resolve_storage_path(&storage_path).ok_or_else(|| "failed to resolve path".to_string())?;
     std::fs::create_dir_all(&path).map_err(|e| format!("Failed to create directory: {}", e))?;
     Ok(())
 }
@@ -663,10 +720,7 @@ pub async fn skills_create_custom_tool_path(
 // --- Reorder Skills ---
 
 #[tauri::command]
-pub async fn skills_reorder(
-    state: State<'_, DbState>,
-    ids: Vec<String>,
-) -> Result<(), String> {
+pub async fn skills_reorder(state: State<'_, DbState>, ids: Vec<String>) -> Result<(), String> {
     skill_store::reorder_skills(&state, &ids).await
 }
 
@@ -753,9 +807,13 @@ pub async fn skills_resync_all(
     app: tauri::AppHandle,
     state: State<'_, DbState>,
 ) -> Result<Vec<String>, String> {
-    let custom_tools = skill_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let skills = skill_store::get_managed_skills(&state).await?;
-    let central_dir = resolve_central_repo_path(&app, &state).await.map_err(|e| format_error(e))?;
+    let central_dir = resolve_central_repo_path(&app, &state)
+        .await
+        .map_err(|e| format_error(e))?;
 
     let mut synced: Vec<String> = Vec::new();
 
@@ -786,7 +844,13 @@ pub async fn skills_resync_all(
             let target = tool_root.join(&skill.name);
 
             // Sync with overwrite
-            if let Ok(result) = sync_dir_for_tool_with_overwrite(tool_key, &central_path, &target, true, runtime_adapter.force_copy) {
+            if let Ok(result) = sync_dir_for_tool_with_overwrite(
+                tool_key,
+                &central_path,
+                &target,
+                true,
+                runtime_adapter.force_copy,
+            ) {
                 let record = SkillTarget {
                     tool: tool_key.clone(),
                     target_path: result.target_path.to_string_lossy().to_string(),

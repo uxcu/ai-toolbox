@@ -46,7 +46,10 @@ pub async fn get_codex_tray_data<R: Runtime>(
                 record.get("id").and_then(|v| v.as_str()),
                 record.get("name").and_then(|v| v.as_str()),
                 record.get("is_applied").and_then(|v| v.as_bool()),
-                record.get("sort_index").and_then(|v| v.as_i64()).unwrap_or(0),
+                record
+                    .get("sort_index")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0),
             ) {
                 let id = db_clean_id(raw_id);
                 let is_disabled = record

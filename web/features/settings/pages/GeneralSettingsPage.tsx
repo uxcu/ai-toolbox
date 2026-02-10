@@ -13,7 +13,8 @@ import {
   CloudSyncOutlined,
   AppstoreOutlined,
   CloudServerOutlined,
-  BulbOutlined
+  BulbOutlined,
+  ImportOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAppStore, useSettingsStore } from '@/stores';
@@ -21,6 +22,7 @@ import { useThemeStore, type ThemeMode } from '@/stores/themeStore';
 import { languages, type Language } from '@/i18n';
 import i18n from '@/i18n';
 import { BackupSettingsModal, WebDAVRestoreModal } from '../components';
+import { CcSwitchImportModal } from '@/features/coding/cc-switch';
 import {
   backupDatabase,
   restoreDatabase,
@@ -61,8 +63,9 @@ const GeneralSettingsPage: React.FC = () => {
     setProxyUrl,
   } = useSettingsStore();
 
-  const [backupModalOpen, setBackupModalOpen] = React.useState(false);
+const [backupModalOpen, setBackupModalOpen] = React.useState(false);
   const [webdavRestoreModalOpen, setWebdavRestoreModalOpen] = React.useState(false);
+  const [ccSwitchImportModalOpen, setCcSwitchImportModalOpen] = React.useState(false);
   const [backupLoading, setBackupLoading] = React.useState(false);
   const [restoreLoading, setRestoreLoading] = React.useState(false);
 
@@ -612,7 +615,7 @@ const GeneralSettingsPage: React.FC = () => {
               bordered
               style={{ marginBottom: 16 }}
             />
-            <Space wrap>
+<Space wrap>
               <Button
                 type="primary"
                 icon={<CloudUploadOutlined />}
@@ -624,6 +627,9 @@ const GeneralSettingsPage: React.FC = () => {
               <Button icon={<CloudDownloadOutlined />} onClick={handleRestore} loading={restoreLoading}>
                 {t('settings.backupSettings.restoreBackup')}
               </Button>
+              <Button icon={<ImportOutlined />} onClick={() => setCcSwitchImportModalOpen(true)}>
+                {t('settings.ccSwitch.import')}
+              </Button>
               <Typography.Link onClick={handleOpenDataDir} style={{ fontSize: 14 }}>
                 {t('settings.backupSettings.openDataDir')}
               </Typography.Link>
@@ -633,7 +639,7 @@ const GeneralSettingsPage: React.FC = () => {
       </Row>
 
       {/* Modals */}
-      <BackupSettingsModal open={backupModalOpen} onClose={() => setBackupModalOpen(false)} />
+<BackupSettingsModal open={backupModalOpen} onClose={() => setBackupModalOpen(false)} />
       <WebDAVRestoreModal
         open={webdavRestoreModalOpen}
         onClose={() => setWebdavRestoreModalOpen(false)}
@@ -642,6 +648,10 @@ const GeneralSettingsPage: React.FC = () => {
         username={webdav.username}
         password={webdav.password}
         remotePath={webdav.remotePath}
+      />
+      <CcSwitchImportModal
+        open={ccSwitchImportModalOpen}
+        onClose={() => setCcSwitchImportModalOpen(false)}
       />
 
       {/* Update Progress Modal */}

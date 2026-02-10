@@ -24,3 +24,8 @@ dist-ssr
 *.sln
 *.sw?
 nul
+.tauri-signing-key
+.tauri-signing-key.pub
+**/CLAUDE.md
+docs
+.serena/**

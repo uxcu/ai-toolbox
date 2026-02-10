@@ -70,22 +70,22 @@ pub async fn sync_mcp_to_wsl(state: &DbState, app: AppHandle) -> Result<(), Stri
         Ok(d) => d,
         Err(e) => {
             log::warn!("WSL MCP sync skipped: {}", e);
-            let _ = app.emit(
-                "wsl-sync-warning",
-                format!("WSL MCP 同步已跳过：{}", e),
-            );
+            let _ = app.emit("wsl-sync-warning", format!("WSL MCP 同步已跳过：{}", e));
             return Ok(());
         }
     };
 
     // Emit progress for MCP sync
-    let _ = app.emit("wsl-sync-progress", SyncProgress {
-        phase: "mcp".to_string(),
-        current_item: "Claude Code MCP".to_string(),
-        current: 1,
-        total: 2,
-        message: "MCP 同步: Claude Code...".to_string(),
-    });
+    let _ = app.emit(
+        "wsl-sync-progress",
+        SyncProgress {
+            phase: "mcp".to_string(),
+            current_item: "Claude Code MCP".to_string(),
+            current: 1,
+            total: 2,
+            message: "MCP 同步: Claude Code...".to_string(),
+        },
+    );
 
     // 1. Claude Code: directly modify WSL ~/.claude.json
     let servers = mcp_store::get_mcp_servers(state).await?;
@@ -98,18 +98,24 @@ pub async fn sync_mcp_to_wsl(state: &DbState, app: AppHandle) -> Result<(), Stri
         log::warn!("Skipped claude.json MCP sync: {}", e);
         let _ = app.emit(
             "wsl-sync-warning",
-            format!("WSL ~/.claude.json 同步已跳过：文件解析失败，请检查该文件格式是否正确。({})", e),
+            format!(
+                "WSL ~/.claude.json 同步已跳过：文件解析失败，请检查该文件格式是否正确。({})",
+                e
+            ),
         );
     }
 
     // Emit progress for OpenCode/Codex
-    let _ = app.emit("wsl-sync-progress", SyncProgress {
-        phase: "mcp".to_string(),
-        current_item: "OpenCode/Codex MCP".to_string(),
-        current: 2,
-        total: 2,
-        message: "MCP 同步: OpenCode/Codex...".to_string(),
-    });
+    let _ = app.emit(
+        "wsl-sync-progress",
+        SyncProgress {
+            phase: "mcp".to_string(),
+            current_item: "OpenCode/Codex MCP".to_string(),
+            current: 2,
+            total: 2,
+            message: "MCP 同步: OpenCode/Codex...".to_string(),
+        },
+    );
 
     // 2. OpenCode/Codex: sync config files via file mappings
     match get_file_mappings(state).await {
@@ -140,8 +146,15 @@ pub async fn sync_mcp_to_wsl(state: &DbState, app: AppHandle) -> Result<(), Stri
                     .filter_map(|s| s.split(" -> ").nth(1).map(|p| p.to_string()))
                     .collect();
                 for mapping in &resolved {
-                    if mapping.enabled && is_mcp_config_file(&mapping.id) && synced_paths.contains(&mapping.wsl_path) {
-                        if let Err(e) = strip_cmd_c_from_wsl_mcp_file(&distro, &mapping.wsl_path, &mapping.module) {
+                    if mapping.enabled
+                        && is_mcp_config_file(&mapping.id)
+                        && synced_paths.contains(&mapping.wsl_path)
+                    {
+                        if let Err(e) = strip_cmd_c_from_wsl_mcp_file(
+                            &distro,
+                            &mapping.wsl_path,
+                            &mapping.module,
+                        ) {
                             log::warn!("Failed to strip cmd /c from {}: {}", mapping.wsl_path, e);
                         }
                     }
@@ -242,11 +255,7 @@ fn build_standard_server_config(server: &crate::coding::mcp::types::McpServer) -
             });
 
             if let Some(env_val) = env {
-                if env_val.is_object()
-                    && !env_val
-                        .as_object()
-                        .map(|o| o.is_empty())
-                        .unwrap_or(true)
+                if env_val.is_object() && !env_val.as_object().map(|o| o.is_empty()).unwrap_or(true)
                 {
                     result["env"] = env_val;
                 }

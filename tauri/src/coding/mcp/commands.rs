@@ -8,12 +8,13 @@ use super::adapter::parse_sync_details_dto;
 use super::config_sync::{import_servers_from_tool, remove_server_from_tool, sync_server_to_tool};
 use super::mcp_store;
 use super::types::{
-    CreateMcpServerInput, McpDiscoveredServerDto, McpImportResultDto, McpScanResultDto, McpServer, McpServerDto,
-    McpSyncDetail, McpSyncResultDto, UpdateMcpServerInput, FavoriteMcp, FavoriteMcpDto, FavoriteMcpInput, now_ms,
+    now_ms, CreateMcpServerInput, FavoriteMcp, FavoriteMcpDto, FavoriteMcpInput,
+    McpDiscoveredServerDto, McpImportResultDto, McpScanResultDto, McpServer, McpServerDto,
+    McpSyncDetail, McpSyncResultDto, UpdateMcpServerInput,
 };
 use crate::coding::tools::{
-    custom_store, get_mcp_runtime_tools, runtime_tool_by_key, RuntimeToolDto, is_tool_installed,
-    to_runtime_tool_dto, resolve_mcp_config_path,
+    custom_store, get_mcp_runtime_tools, is_tool_installed, resolve_mcp_config_path,
+    runtime_tool_by_key, to_runtime_tool_dto, RuntimeToolDto,
 };
 use crate::DbState;
 
@@ -68,7 +69,9 @@ pub async fn mcp_create_server<R: Runtime>(
     let id = mcp_store::upsert_mcp_server(&state, &server).await?;
 
     // Sync to all enabled tools
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     for tool_key in &input.enabled_tools {
         if let Some(tool) = runtime_tool_by_key(tool_key, &custom_tools) {
             if is_tool_installed(&tool) {
@@ -153,7 +156,9 @@ pub async fn mcp_update_server<R: Runtime>(
     mcp_store::upsert_mcp_server(&state, &server).await?;
 
     // Re-sync to all enabled tools
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     for tool_key in &server.enabled_tools {
         if let Some(tool) = runtime_tool_by_key(tool_key, &custom_tools) {
             if is_tool_installed(&tool) {
@@ -211,7 +216,9 @@ pub async fn mcp_delete_server<R: Runtime>(
     // Get the server first to remove from tool configs
     if let Some(server) = mcp_store::get_mcp_server_by_id(&state, &serverId).await? {
         // Remove from all enabled tools' configs
-        let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+        let custom_tools = custom_store::get_custom_tools(&state)
+            .await
+            .unwrap_or_default();
         for tool_key in &server.enabled_tools {
             if let Some(tool) = runtime_tool_by_key(tool_key, &custom_tools) {
                 let _ = remove_server_from_tool(&server.name, &tool);
@@ -245,7 +252,9 @@ pub async fn mcp_toggle_tool<R: Runtime>(
         .ok_or_else(|| format!("MCP server not found: {}", serverId))?;
 
     // Get the tool
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let tool = runtime_tool_by_key(&toolKey, &custom_tools)
         .ok_or_else(|| format!("Tool not found: {}", toolKey))?;
 
@@ -299,7 +308,9 @@ pub async fn mcp_sync_to_tool<R: Runtime>(
     state: State<'_, DbState>,
     toolKey: String,
 ) -> Result<Vec<McpSyncResultDto>, String> {
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let tool = runtime_tool_by_key(&toolKey, &custom_tools)
         .ok_or_else(|| format!("Tool not found: {}", toolKey))?;
 
@@ -354,7 +365,9 @@ pub async fn mcp_sync_all<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, DbState>,
 ) -> Result<Vec<McpSyncResultDto>, String> {
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let servers = mcp_store::get_mcp_servers(&state).await?;
     let mut results = Vec::new();
 
@@ -412,7 +425,9 @@ pub async fn mcp_import_from_tool(
     toolKey: String,
     enabledTools: Option<Vec<String>>,
 ) -> Result<McpImportResultDto, String> {
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let tool = runtime_tool_by_key(&toolKey, &custom_tools)
         .ok_or_else(|| format!("Tool not found: {}", toolKey))?;
 
@@ -434,7 +449,8 @@ pub async fn mcp_import_from_tool(
         let prefs = mcp_store::get_mcp_preferences(&state).await?;
         if !prefs.preferred_tools.is_empty() {
             // Use preferred tools, but only those that are installed
-            prefs.preferred_tools
+            prefs
+                .preferred_tools
                 .into_iter()
                 .filter(|key| {
                     runtime_tool_by_key(key, &custom_tools)
@@ -461,7 +477,9 @@ pub async fn mcp_import_from_tool(
         // Check if server with same name already exists
         if let Some(existing) = mcp_store::get_mcp_server_by_name(&state, &server.name).await? {
             // Compare configurations
-            if existing.server_type == server.server_type && existing.server_config == server.server_config {
+            if existing.server_type == server.server_type
+                && existing.server_config == server.server_config
+            {
                 // Same config, skip
                 servers_skipped += 1;
                 continue;
@@ -485,7 +503,8 @@ pub async fn mcp_import_from_tool(
                     if let Some(target_tool) = runtime_tool_by_key(tool_key, &custom_tools) {
                         match sync_server_to_tool(&server, &target_tool) {
                             Ok(detail) => {
-                                let _ = mcp_store::update_sync_detail(&state, &server_id, &detail).await;
+                                let _ = mcp_store::update_sync_detail(&state, &server_id, &detail)
+                                    .await;
                             }
                             Err(e) => {
                                 let detail = McpSyncDetail {
@@ -494,8 +513,10 @@ pub async fn mcp_import_from_tool(
                                     synced_at: Some(now_ms()),
                                     error_message: Some(e.clone()),
                                 };
-                                let _ = mcp_store::update_sync_detail(&state, &server_id, &detail).await;
-                                errors.push(format!("Sync '{}' to {}: {}", server.name, tool_key, e));
+                                let _ = mcp_store::update_sync_detail(&state, &server_id, &detail)
+                                    .await;
+                                errors
+                                    .push(format!("Sync '{}' to {}: {}", server.name, tool_key, e));
                             }
                         }
                     }
@@ -520,13 +541,12 @@ pub async fn mcp_import_from_tool(
 /// Get all tools that support MCP
 #[tauri::command]
 pub async fn mcp_get_tools(state: State<'_, DbState>) -> Result<Vec<RuntimeToolDto>, String> {
-    let custom_tools = custom_store::get_custom_tools(&state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(&state)
+        .await
+        .unwrap_or_default();
     let mcp_tools = get_mcp_runtime_tools(&custom_tools);
 
-    Ok(mcp_tools
-        .iter()
-        .map(to_runtime_tool_dto)
-        .collect())
+    Ok(mcp_tools.iter().map(to_runtime_tool_dto).collect())
 }
 
 /// Scan all installed MCP tools and return discovered servers (excluding already imported ones)
@@ -540,20 +560,22 @@ pub async fn mcp_scan_servers(state: State<'_, DbState>) -> Result<McpScanResult
     .await
     {
         Ok(result) => result,
-        Err(_) => Err("Scan timed out after 30 seconds. Please check your custom tool paths.".to_string()),
+        Err(_) => {
+            Err("Scan timed out after 30 seconds. Please check your custom tool paths.".to_string())
+        }
     }
 }
 
 async fn mcp_scan_servers_inner(state: &DbState) -> Result<McpScanResultDto, String> {
-    let custom_tools = custom_store::get_custom_tools(state).await.unwrap_or_default();
+    let custom_tools = custom_store::get_custom_tools(state)
+        .await
+        .unwrap_or_default();
     let mcp_tools = get_mcp_runtime_tools(&custom_tools);
 
     // Get existing server names for filtering
     let existing_servers = mcp_store::get_mcp_servers(state).await?;
-    let existing_names: std::collections::HashSet<String> = existing_servers
-        .iter()
-        .map(|s| s.name.clone())
-        .collect();
+    let existing_names: std::collections::HashSet<String> =
+        existing_servers.iter().map(|s| s.name.clone()).collect();
 
     // Run the blocking file system operations in a dedicated thread pool
     // to avoid blocking the tokio async runtime
@@ -569,7 +591,7 @@ async fn mcp_scan_servers_inner(state: &DbState) -> Result<McpScanResultDto, Str
             let Some(config_path) = resolve_mcp_config_path(tool) else {
                 continue;
             };
-            
+
             if !config_path.exists() {
                 continue;
             }
@@ -580,7 +602,11 @@ async fn mcp_scan_servers_inner(state: &DbState) -> Result<McpScanResultDto, Str
             // Try to import servers from this tool
             match import_servers_from_tool(tool) {
                 Ok(imported) => {
-                    eprintln!("[DEBUG][mcp_scan_servers] {} imported {} servers", tool.key, imported.len());
+                    eprintln!(
+                        "[DEBUG][mcp_scan_servers] {} imported {} servers",
+                        tool.key,
+                        imported.len()
+                    );
                     for server in imported {
                         // Skip servers that already exist in the database
                         if existing_names.contains(&server.name) {
@@ -624,10 +650,7 @@ pub async fn mcp_get_show_in_tray(state: State<'_, DbState>) -> Result<bool, Str
 
 /// Set MCP show in tray setting
 #[tauri::command]
-pub async fn mcp_set_show_in_tray(
-    state: State<'_, DbState>,
-    enabled: bool,
-) -> Result<(), String> {
+pub async fn mcp_set_show_in_tray(state: State<'_, DbState>, enabled: bool) -> Result<(), String> {
     let mut prefs = mcp_store::get_mcp_preferences(&state).await?;
     prefs.show_in_tray = enabled;
     prefs.updated_at = now_ms();
@@ -842,11 +865,31 @@ pub async fn mcp_init_default_favorites(state: State<'_, DbState>) -> Result<usi
 
     // Default preset MCPs
     let presets = vec![
-        ("mcp-server-fetch", "stdio", r#"{"command":"uvx","args":["mcp-server-fetch"]}"#),
-        ("@modelcontextprotocol/server-time", "stdio", r#"{"command":"npx","args":["-y","@modelcontextprotocol/server-time"]}"#),
-        ("@modelcontextprotocol/server-memory", "stdio", r#"{"command":"npx","args":["-y","@modelcontextprotocol/server-memory"]}"#),
-        ("@modelcontextprotocol/server-sequential-thinking", "stdio", r#"{"command":"npx","args":["-y","@modelcontextprotocol/server-sequential-thinking"]}"#),
-        ("@upstash/context7-mcp", "stdio", r#"{"command":"npx","args":["-y","@upstash/context7-mcp"]}"#),
+        (
+            "mcp-server-fetch",
+            "stdio",
+            r#"{"command":"uvx","args":["mcp-server-fetch"]}"#,
+        ),
+        (
+            "@modelcontextprotocol/server-time",
+            "stdio",
+            r#"{"command":"npx","args":["-y","@modelcontextprotocol/server-time"]}"#,
+        ),
+        (
+            "@modelcontextprotocol/server-memory",
+            "stdio",
+            r#"{"command":"npx","args":["-y","@modelcontextprotocol/server-memory"]}"#,
+        ),
+        (
+            "@modelcontextprotocol/server-sequential-thinking",
+            "stdio",
+            r#"{"command":"npx","args":["-y","@modelcontextprotocol/server-sequential-thinking"]}"#,
+        ),
+        (
+            "@upstash/context7-mcp",
+            "stdio",
+            r#"{"command":"npx","args":["-y","@upstash/context7-mcp"]}"#,
+        ),
     ];
 
     for (name, server_type, config_json) in &presets {

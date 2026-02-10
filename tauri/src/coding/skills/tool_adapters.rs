@@ -214,7 +214,10 @@ pub fn get_all_tool_adapters(custom_tools: &[CustomTool]) -> Vec<RuntimeToolAdap
 }
 
 /// Find adapter by key (supports both built-in and custom)
-pub fn runtime_adapter_by_key(key: &str, custom_tools: &[CustomTool]) -> Option<RuntimeToolAdapter> {
+pub fn runtime_adapter_by_key(
+    key: &str,
+    custom_tools: &[CustomTool],
+) -> Option<RuntimeToolAdapter> {
     // Check built-in first
     if let Some(adapter) = adapter_by_key(key) {
         return Some(RuntimeToolAdapter::from(&adapter));
@@ -253,7 +256,10 @@ pub fn resolve_runtime_skills_path(adapter: &RuntimeToolAdapter) -> Result<PathB
 }
 
 /// Scan a tool directory for skills
-pub fn scan_tool_dir(adapter: &ToolAdapter, dir: &Path) -> Result<Vec<super::types::DetectedSkill>> {
+pub fn scan_tool_dir(
+    adapter: &ToolAdapter,
+    dir: &Path,
+) -> Result<Vec<super::types::DetectedSkill>> {
     let mut results = Vec::new();
     if !dir.exists() {
         return Ok(results);

@@ -4,9 +4,9 @@
 
 use std::path::PathBuf;
 
-use super::types::{CustomTool, RuntimeTool, RuntimeToolDto, ToolDetectionDto};
 use super::builtin::BUILTIN_TOOLS;
 use super::path_utils::{resolve_storage_path, to_platform_path};
+use super::types::{CustomTool, RuntimeTool, RuntimeToolDto, ToolDetectionDto};
 
 /// Check if a runtime tool is installed by checking its detect directory
 pub fn is_tool_installed(tool: &RuntimeTool) -> bool {
@@ -17,7 +17,9 @@ pub fn is_tool_installed(tool: &RuntimeTool) -> bool {
 
     // Special handling for OpenCode - use dynamic path resolution
     if tool.key == "opencode" {
-        if let Some(config_path) = crate::coding::mcp::opencode_path::get_opencode_mcp_config_path_sync() {
+        if let Some(config_path) =
+            crate::coding::mcp::opencode_path::get_opencode_mcp_config_path_sync()
+        {
             // Check if the config file or its parent directory exists
             if config_path.exists() {
                 return true;
@@ -56,17 +58,14 @@ pub fn resolve_mcp_config_path(tool: &RuntimeTool) -> Option<PathBuf> {
     }
 
     // Use path_utils to resolve (handles ~/ and %APPDATA%/ paths)
-    tool.mcp_config_path.as_ref().and_then(|path| {
-        resolve_storage_path(path)
-    })
+    tool.mcp_config_path
+        .as_ref()
+        .and_then(|path| resolve_storage_path(path))
 }
 
 /// Get all tools (built-in + custom) as RuntimeTool
 pub fn get_all_runtime_tools(custom_tools: &[CustomTool]) -> Vec<RuntimeTool> {
-    let mut tools: Vec<RuntimeTool> = BUILTIN_TOOLS
-        .iter()
-        .map(RuntimeTool::from)
-        .collect();
+    let mut tools: Vec<RuntimeTool> = BUILTIN_TOOLS.iter().map(RuntimeTool::from).collect();
 
     for custom in custom_tools {
         tools.push(RuntimeTool::from(custom));
@@ -117,8 +116,7 @@ pub fn runtime_tool_by_key(key: &str, custom_tools: &[CustomTool]) -> Option<Run
 /// Convert RuntimeTool to RuntimeToolDto with installation status
 pub fn to_runtime_tool_dto(tool: &RuntimeTool) -> RuntimeToolDto {
     let installed = is_tool_installed(tool);
-    let skills_path = resolve_skills_path(tool)
-        .map(|p| p.to_string_lossy().to_string());
+    let skills_path = resolve_skills_path(tool).map(|p| p.to_string_lossy().to_string());
 
     RuntimeToolDto {
         key: tool.key.clone(),

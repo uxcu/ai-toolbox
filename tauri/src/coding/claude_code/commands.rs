@@ -1,11 +1,11 @@
 use chrono::Local;
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
-use serde_json::Value;
 
-use crate::db::DbState;
 use super::adapter;
 use super::types::*;
+use crate::db::DbState;
 use tauri::Emitter;
 
 const KNOWN_ENV_FIELDS: [&str; 7] = [
@@ -35,7 +35,7 @@ pub async fn list_claude_providers(
         .map_err(|e| format!("Failed to query providers: {}", e))?
         .take(0);
 
-match records_result {
+    match records_result {
         Ok(records) => {
             if records.is_empty() {
                 // Database is empty, try to load from local file as temporary provider
@@ -219,10 +219,7 @@ pub async fn update_claude_provider(
     // Check if provider exists
     if let Ok(records) = &existing_result {
         if records.is_empty() {
-            return Err(format!(
-                "Claude Code provider with ID '{}' not found",
-                id
-            ));
+            return Err(format!("Claude Code provider with ID '{}' not found", id));
         }
     }
 
@@ -357,10 +354,12 @@ pub async fn select_claude_provider(
     let now = Local::now().to_rfc3339();
 
     // Mark all providers as not applied (only update the currently applied one)
-    db.query("UPDATE claude_provider SET is_applied = false, updated_at = $now WHERE is_applied = true")
-        .bind(("now", now.clone()))
-        .await
-        .map_err(|e| format!("Failed to reset applied status: {}", e))?;
+    db.query(
+        "UPDATE claude_provider SET is_applied = false, updated_at = $now WHERE is_applied = true",
+    )
+    .bind(("now", now.clone()))
+    .await
+    .map_err(|e| format!("Failed to reset applied status: {}", e))?;
 
     // Mark target provider as applied
     db.query("UPDATE claude_provider SET is_applied = true, updated_at = $now WHERE id = type::thing('claude_provider', $id)")
@@ -469,8 +468,6 @@ pub async fn apply_config_to_file_public(
     db: &surrealdb::Surreal<surrealdb::engine::local::Db>,
     provider_id: &str,
 ) -> Result<(), String> {
-
-
     // Get the provider
     // Use type::thing(table, id) to create a Thing from table name and id
     let provider_result: Result<Vec<Value>, _> = db
@@ -495,7 +492,10 @@ pub async fn apply_config_to_file_public(
 
     // Check if provider is disabled
     if provider.is_disabled {
-        return Err(format!("Provider '{}' is disabled and cannot be applied", provider_id));
+        return Err(format!(
+            "Provider '{}' is disabled and cannot be applied",
+            provider_id
+        ));
     }
 
     // Parse provider settings_config
@@ -533,13 +533,13 @@ pub async fn apply_config_to_file_public(
             .or_else(|| env_config.get("ANTHROPIC_API_KEY"))
             .and_then(|v| v.as_str());
         if let Some(key) = api_key {
-            env.insert(
-                "ANTHROPIC_AUTH_TOKEN".to_string(),
-                serde_json::json!(key),
-            );
+            env.insert("ANTHROPIC_AUTH_TOKEN".to_string(), serde_json::json!(key));
         }
 
-        if let Some(base_url) = env_config.get("ANTHROPIC_BASE_URL").and_then(|v| v.as_str()) {
+        if let Some(base_url) = env_config
+            .get("ANTHROPIC_BASE_URL")
+            .and_then(|v| v.as_str())
+        {
             env.insert(
                 "ANTHROPIC_BASE_URL".to_string(),
                 serde_json::json!(base_url),
@@ -685,10 +685,12 @@ pub async fn apply_config_internal<R: tauri::Runtime>(
     let now = Local::now().to_rfc3339();
 
     // Mark all providers as not applied (only update the currently applied one)
-    db.query("UPDATE claude_provider SET is_applied = false, updated_at = $now WHERE is_applied = true")
-        .bind(("now", now.clone()))
-        .await
-        .map_err(|e| format!("Failed to reset applied status: {}", e))?;
+    db.query(
+        "UPDATE claude_provider SET is_applied = false, updated_at = $now WHERE is_applied = true",
+    )
+    .bind(("now", now.clone()))
+    .await
+    .map_err(|e| format!("Failed to reset applied status: {}", e))?;
 
     // Mark target provider as applied
     db.query("UPDATE claude_provider SET is_applied = true, updated_at = $now WHERE id = type::thing('claude_provider', $id)")
@@ -725,7 +727,7 @@ pub async fn get_claude_common_config(
         .map_err(|e| format!("Failed to query common config: {}", e))?
         .take(0);
 
-match records_result {
+    match records_result {
         Ok(records) => {
             if let Some(record) = records.first() {
                 Ok(Some(adapter::from_db_value_common(record.clone())))
@@ -744,7 +746,10 @@ match records_result {
                 Ok(Some(temp_common))
             } else {
                 // 反序列化失败，删除旧数据以修复版本冲突
-                eprintln!("⚠️ Claude common config has incompatible format, cleaning up: {}", e);
+                eprintln!(
+                    "⚠️ Claude common config has incompatible format, cleaning up: {}",
+                    e
+                );
                 let _ = db.query("DELETE claude_common_config:`common`").await;
                 Ok(None)
             }
@@ -826,7 +831,9 @@ pub async fn save_claude_common_config(
 
     // 查找当前应用的 provider，如果存在则重新应用到文件
     let applied_result: Result<Vec<Value>, _> = db
-        .query("SELECT *, type::string(id) as id FROM claude_provider WHERE is_applied = true LIMIT 1")
+        .query(
+            "SELECT *, type::string(id) as id FROM claude_provider WHERE is_applied = true LIMIT 1",
+        )
         .await
         .map_err(|e| format!("Failed to query applied provider: {}", e))?
         .take(0);
@@ -836,7 +843,10 @@ pub async fn save_claude_common_config(
             let applied_provider = adapter::from_db_value_provider(record.clone());
             // 重新应用配置到文件（不改变数据库中的 is_applied 状态）
             if let Err(e) = apply_config_to_file(&db, &applied_provider.id).await {
-                eprintln!("Failed to auto-apply config after common config update: {}", e);
+                eprintln!(
+                    "Failed to auto-apply config after common config update: {}",
+                    e
+                );
                 // 不中断保存流程，只记录错误
             }
         }
@@ -847,7 +857,6 @@ pub async fn save_claude_common_config(
 
     Ok(())
 }
-
 
 /// Save local config (provider and/or common) into database
 /// Input can include provider and/or commonConfig; missing parts will be loaded from settings.json
@@ -947,7 +956,6 @@ pub async fn save_claude_local_config(
     Ok(())
 }
 
-
 // ============================================================================
 // Claude Plugin Integration Commands
 // ============================================================================
@@ -958,7 +966,9 @@ fn get_claude_plugin_config_path() -> Result<std::path::PathBuf, String> {
         .or_else(|_| std::env::var("HOME"))
         .map_err(|_| "Failed to get home directory".to_string())?;
 
-    Ok(std::path::Path::new(&home_dir).join(".claude").join("config.json"))
+    Ok(std::path::Path::new(&home_dir)
+        .join(".claude")
+        .join("config.json"))
 }
 
 /// Check if plugin config has primaryApiKey = "any"
@@ -1139,7 +1149,10 @@ pub async fn init_claude_provider_from_settings(
     if let Some(base_url) = provider_env.get("ANTHROPIC_BASE_URL") {
         provider_env_for_settings.insert("ANTHROPIC_BASE_URL".to_string(), base_url.clone());
     }
-    provider_settings.insert("env".to_string(), serde_json::json!(provider_env_for_settings));
+    provider_settings.insert(
+        "env".to_string(),
+        serde_json::json!(provider_env_for_settings),
+    );
 
     // Convert ANTHROPIC_MODEL -> model, etc.
     if let Some(model) = provider_env.get("ANTHROPIC_MODEL") {
@@ -1264,8 +1277,7 @@ pub async fn apply_claude_onboarding_skip() -> Result<bool, String> {
     // Ensure directory exists
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
         }
     }
 

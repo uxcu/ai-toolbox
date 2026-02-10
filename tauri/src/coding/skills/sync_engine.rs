@@ -147,7 +147,8 @@ fn remove_path_any(path: &Path) -> Result<()> {
         {
             // On Windows, directory junctions need remove_dir, not remove_file
             if path.is_dir() {
-                std::fs::remove_dir(path).with_context(|| format!("remove dir junction {:?}", path))?;
+                std::fs::remove_dir(path)
+                    .with_context(|| format!("remove dir junction {:?}", path))?;
             } else {
                 std::fs::remove_file(path).with_context(|| format!("remove symlink {:?}", path))?;
             }
@@ -207,12 +208,9 @@ fn should_skip_copy(entry: &walkdir::DirEntry) -> bool {
 /// this function also handles that case.
 /// Symlinks deeper in the tree are left as-is (skipped by `copy_dir_recursive`).
 pub fn copy_skill_dir(source: &Path, target: &Path) -> Result<()> {
-    std::fs::create_dir_all(target)
-        .with_context(|| format!("create dir {:?}", target))?;
+    std::fs::create_dir_all(target).with_context(|| format!("create dir {:?}", target))?;
 
-    for entry in std::fs::read_dir(source)
-        .with_context(|| format!("read dir {:?}", source))?
-    {
+    for entry in std::fs::read_dir(source).with_context(|| format!("read dir {:?}", source))? {
         let entry = entry?;
         let name = entry.file_name();
 
@@ -225,10 +223,8 @@ pub fn copy_skill_dir(source: &Path, target: &Path) -> Result<()> {
 
         // Resolve symlinks at the top level
         let real_path = match std::fs::symlink_metadata(&entry_path) {
-            Ok(meta) if meta.file_type().is_symlink() => {
-                std::fs::canonicalize(&entry_path)
-                    .with_context(|| format!("resolve symlink {:?}", entry_path))?
-            }
+            Ok(meta) if meta.file_type().is_symlink() => std::fs::canonicalize(&entry_path)
+                .with_context(|| format!("resolve symlink {:?}", entry_path))?,
             Ok(meta) if meta.is_file() => {
                 // On Windows, Git stores symlinks as small text files containing the target path.
                 // Check if this might be a git-style symlink (small file with path content).
@@ -241,8 +237,8 @@ pub fn copy_skill_dir(source: &Path, target: &Path) -> Result<()> {
             _ => entry_path.clone(),
         };
 
-        let real_meta = std::fs::metadata(&real_path)
-            .with_context(|| format!("stat {:?}", real_path))?;
+        let real_meta =
+            std::fs::metadata(&real_path).with_context(|| format!("stat {:?}", real_path))?;
 
         if real_meta.is_dir() {
             copy_dir_recursive(&real_path, &dest)?;

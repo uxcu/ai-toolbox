@@ -80,7 +80,7 @@ pub struct McpServer {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct McpSyncDetail {
     pub tool: String,
-    pub status: String,  // "ok" | "error" | "pending"
+    pub status: String, // "ok" | "error" | "pending"
     pub synced_at: Option<i64>,
     pub error_message: Option<String>,
 }
@@ -171,7 +171,7 @@ pub struct McpSyncResultDto {
 pub struct McpImportResultDto {
     pub servers_imported: i32,
     pub servers_skipped: i32,
-    pub servers_duplicated: Vec<String>,  // Names of servers created with suffix due to config differences
+    pub servers_duplicated: Vec<String>, // Names of servers created with suffix due to config differences
     pub errors: Vec<String>,
 }
 

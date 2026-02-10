@@ -6,7 +6,10 @@ use tauri::Manager;
 const CENTRAL_DIR_NAME: &str = "skills";
 
 /// Resolve the central repo path from settings or default to app_data_dir/skills
-pub async fn resolve_central_repo_path(app: &tauri::AppHandle, state: &crate::DbState) -> Result<PathBuf> {
+pub async fn resolve_central_repo_path(
+    app: &tauri::AppHandle,
+    state: &crate::DbState,
+) -> Result<PathBuf> {
     // Try to get from settings first
     let settings_result: std::result::Result<Option<PathBuf>, String> = async {
         let db = state.0.lock().await;
@@ -25,14 +28,17 @@ pub async fn resolve_central_repo_path(app: &tauri::AppHandle, state: &crate::Db
             }
         }
         Ok(None)
-    }.await;
+    }
+    .await;
 
     if let Ok(Some(path)) = settings_result {
         return Ok(path);
     }
 
     // Default to app data directory / skills
-    let app_data_dir = app.path().app_data_dir()
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
         .context("failed to resolve app data directory")?;
     Ok(app_data_dir.join(CENTRAL_DIR_NAME))
 }

@@ -6,13 +6,16 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::cache_cleanup::get_git_cache_ttl_secs;
-use super::central_repo::{ensure_central_repo, resolve_central_repo_path, resolve_skill_central_path, to_relative_central_path};
+use super::central_repo::{
+    ensure_central_repo, resolve_central_repo_path, resolve_skill_central_path,
+    to_relative_central_path,
+};
 use super::content_hash::hash_dir;
 use super::git_fetcher::{clone_or_pull, set_proxy};
+use super::skill_store;
 use super::sync_engine::{copy_dir_recursive, copy_skill_dir, sync_dir_copy_with_overwrite};
 use super::tool_adapters::{adapter_by_key, is_tool_installed, RuntimeToolAdapter};
-use super::types::{GitSkillCandidate, InstallResult, UpdateResult, Skill, now_ms};
-use super::skill_store;
+use super::types::{now_ms, GitSkillCandidate, InstallResult, Skill, UpdateResult};
 use crate::http_client;
 use crate::DbState;
 
@@ -77,7 +80,9 @@ pub async fn install_local_skill(
         sync_details: None,
     };
 
-    let skill_id = skill_store::upsert_skill(state, &record).await.map_err(|e| anyhow::anyhow!(e))?;
+    let skill_id = skill_store::upsert_skill(state, &record)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(InstallResult {
         skill_id,
@@ -210,7 +215,9 @@ pub async fn install_git_skill(
         sync_details: None,
     };
 
-    let skill_id = skill_store::upsert_skill(state, &record).await.map_err(|e| anyhow::anyhow!(e))?;
+    let skill_id = skill_store::upsert_skill(state, &record)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(InstallResult {
         skill_id,
@@ -230,7 +237,8 @@ pub fn list_git_skills(
     let parsed = parse_github_url(repo_url);
     // Use provided branch, or fall back to parsed branch from URL
     let effective_branch = branch.or(parsed.branch.as_deref());
-    let (repo_dir, _rev) = clone_to_cache(app, cache_ttl_secs, &parsed.clone_url, effective_branch)?;
+    let (repo_dir, _rev) =
+        clone_to_cache(app, cache_ttl_secs, &parsed.clone_url, effective_branch)?;
 
     let mut out: Vec<GitSkillCandidate> = Vec::new();
 
@@ -292,8 +300,7 @@ pub async fn install_git_skill_from_selection(
 
     // Clone first, then read skill name from SKILL.md
     let ttl = get_git_cache_ttl_secs(state).await;
-    let (repo_dir, revision) =
-        clone_to_cache(app, ttl, &parsed.clone_url, effective_branch)?;
+    let (repo_dir, revision) = clone_to_cache(app, ttl, &parsed.clone_url, effective_branch)?;
 
     let copy_src = if subpath == "." {
         repo_dir.clone()
@@ -369,7 +376,9 @@ pub async fn install_git_skill_from_selection(
         enabled_tools: Vec::new(),
         sync_details: None,
     };
-    let skill_id = skill_store::upsert_skill(state, &record).await.map_err(|e| anyhow::anyhow!(e))?;
+    let skill_id = skill_store::upsert_skill(state, &record)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(InstallResult {
         skill_id,
@@ -482,13 +491,17 @@ pub async fn update_managed_skill_from_source(
         enabled_tools: record.enabled_tools.clone(),
         sync_details: record.sync_details.clone(),
     };
-    skill_store::upsert_skill(state, &updated).await.map_err(|e| anyhow::anyhow!(e))?;
+    skill_store::upsert_skill(state, &updated)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // Re-sync copy targets (symlinks update automatically)
     let targets = skill_store::get_skill_targets(state, skill_id)
         .await
         .unwrap_or_default();
-    let custom_tools = skill_store::get_custom_tools(state).await.unwrap_or_default();
+    let custom_tools = skill_store::get_custom_tools(state)
+        .await
+        .unwrap_or_default();
     let mut updated_targets: Vec<String> = Vec::new();
     for t in targets {
         // Skip if tool not installed
@@ -621,7 +634,13 @@ fn looks_like_github_shorthand(input: &str) -> bool {
 
     let owner = parts[0];
     let repo = parts[1];
-    if owner.is_empty() || repo.is_empty() || owner == "." || owner == ".." || repo == "." || repo == ".." {
+    if owner.is_empty()
+        || repo.is_empty()
+        || owner == "."
+        || owner == ".."
+        || repo == "."
+        || repo == ".."
+    {
         return false;
     }
 
