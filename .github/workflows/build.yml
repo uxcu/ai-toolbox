@@ -83,7 +83,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.12.0'
+          cache: 'pnpm'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -105,7 +106,7 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -114,9 +115,6 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './tauri -> target'
-
-      - name: Build frontend
-        run: pnpm build
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
