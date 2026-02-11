@@ -15,6 +15,9 @@ env:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,17 +43,35 @@ jobs:
           workspaces: './tauri -> target'
           shared-key: 'windows-x86_64'
 
+      - name: Check signing key availability
+        id: signing_check
+        shell: bash
+        run: |
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Tauri app
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=4096
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: pnpm tauri
           projectPath: tauri
           args: --target x86_64-pc-windows-msvc --bundles nsis,msi
 
+      - name: Skip Tauri app build (no signing key)
+        if: steps.signing_check.outputs.has_key != 'true'
+        run: echo "Skipping Tauri build because TAURI_SIGNING_PRIVATE_KEY is not available in this workflow context."
+
       - name: Upload build artifacts
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
@@ -61,6 +82,9 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -92,10 +116,23 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check signing key availability
+        id: signing_check
+        shell: bash
+        run: |
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Tauri app (ARM64)
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NODE_OPTIONS: --max-old-space-size=4096
         with:
           tauriScript: pnpm tauri
@@ -103,16 +140,24 @@ jobs:
           args: --target aarch64-apple-darwin --bundles dmg,app
 
       - name: Build Tauri app (x86_64)
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NODE_OPTIONS: --max-old-space-size=4096
         with:
           tauriScript: pnpm tauri
           projectPath: tauri
           args: --target x86_64-apple-darwin --bundles dmg,app
 
+      - name: Skip Tauri app build (no signing key)
+        if: steps.signing_check.outputs.has_key != 'true'
+        run: echo "Skipping Tauri build because TAURI_SIGNING_PRIVATE_KEY is not available in this workflow context."
+
       - name: Upload build artifacts
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: macos-build
@@ -123,6 +168,9 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-22.04
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -159,17 +207,35 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check signing key availability
+        id: signing_check
+        shell: bash
+        run: |
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Tauri app
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NODE_OPTIONS: --max-old-space-size=4096
         with:
           tauriScript: pnpm tauri
           projectPath: tauri
           args: --target x86_64-unknown-linux-gnu --bundles deb,appimage
 
+      - name: Skip Tauri app build (no signing key)
+        if: steps.signing_check.outputs.has_key != 'true'
+        run: echo "Skipping Tauri build because TAURI_SIGNING_PRIVATE_KEY is not available in this workflow context."
+
       - name: Upload build artifacts
+        if: steps.signing_check.outputs.has_key == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
