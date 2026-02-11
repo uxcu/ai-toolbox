@@ -1134,6 +1134,7 @@ pub fn run() {
             coding::open_code::list_opencode_favorite_plugins,
             coding::open_code::add_opencode_favorite_plugin,
             coding::open_code::delete_opencode_favorite_plugin,
+            coding::open_code::install_opencode_feishu_ws_bridge,
             coding::open_code::list_opencode_favorite_providers,
             coding::open_code::upsert_opencode_favorite_provider,
             coding::open_code::delete_opencode_favorite_provider,

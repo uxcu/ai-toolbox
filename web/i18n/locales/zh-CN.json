@@ -536,7 +536,10 @@
       "deleteError": "删除失败",
       "cannotDelete": "核心插件不可删除",
       "showInMenu": "在快捷菜单中显示插件",
-      "saveError": "保存失败"
+      "saveError": "保存失败",
+      "installFeishuBridge": "安装飞书 WS 桥接",
+      "feishuBridgeInstalled": "飞书 WS 桥接脚手架已安装",
+      "feishuBridgeInstallError": "飞书 WS 桥接安装失败"
     },
     "mcp": {
       "title": "MCP 服务器配置",

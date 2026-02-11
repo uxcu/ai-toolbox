@@ -536,7 +536,10 @@
       "deleteError": "Failed to delete",
       "cannotDelete": "Core plugin cannot be deleted",
       "showInMenu": "Show plugins in quick menu",
-      "saveError": "Failed to save setting"
+      "saveError": "Failed to save setting",
+      "installFeishuBridge": "Install Feishu WS Bridge",
+      "feishuBridgeInstalled": "Feishu WS bridge scaffold installed",
+      "feishuBridgeInstallError": "Failed to install Feishu WS bridge"
     },
     "mcp": {
       "title": "MCP Server Configuration",

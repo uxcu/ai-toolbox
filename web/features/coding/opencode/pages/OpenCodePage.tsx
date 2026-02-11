@@ -22,7 +22,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { readOpenCodeConfigWithResult, saveOpenCodeConfig, getOpenCodeConfigPathInfo, getOpenCodeUnifiedModels, getOpenCodeAuthProviders, getOpenCodeAuthConfigPath, listFavoriteProviders, upsertFavoriteProvider, buildModelVariantsMap, type ConfigPathInfo, type UnifiedModelOption, type GetAuthProvidersResponse, type OpenCodeFavoriteProvider, type OpenCodeDiagnosticsConfig } from '@/services/opencodeApi';
+import { readOpenCodeConfigWithResult, saveOpenCodeConfig, getOpenCodeConfigPathInfo, getOpenCodeUnifiedModels, getOpenCodeAuthProviders, getOpenCodeAuthConfigPath, listFavoriteProviders, upsertFavoriteProvider, buildModelVariantsMap, installOpenCodeFeishuWsBridge, type ConfigPathInfo, type UnifiedModelOption, type GetAuthProvidersResponse, type OpenCodeFavoriteProvider, type OpenCodeDiagnosticsConfig } from '@/services/opencodeApi';
 import { listOhMyOpenCodeConfigs, applyOhMyOpenCodeConfig } from '@/services/ohMyOpenCodeApi';
 import { listOhMyOpenCodeSlimConfigs } from '@/services/ohMyOpenCodeSlimApi';
 import { refreshTrayMenu } from '@/services/appApi';
@@ -405,6 +405,17 @@ const OpenCodePage: React.FC = () => {
         console.error('Failed to open folder:', error);
         message.error(t('common.error'));
       }
+    }
+  };
+
+  const handleInstallFeishuBridge = async () => {
+    try {
+      const result = await installOpenCodeFeishuWsBridge();
+      message.success(t('opencode.plugin.feishuBridgeInstalled'));
+      await revealItemInDir(result.bridgeDir);
+    } catch (error) {
+      console.error('Failed to install feishu ws bridge:', error);
+      message.error(t('opencode.plugin.feishuBridgeInstallError'));
     }
   };
 
@@ -1097,6 +1108,15 @@ const OpenCodePage: React.FC = () => {
                   style={{ padding: 0, fontSize: 12 }}
                 >
                   {t('opencode.openFolder')}
+                </Button>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CloudDownloadOutlined />}
+                  onClick={handleInstallFeishuBridge}
+                  style={{ padding: 0, fontSize: 12 }}
+                >
+                  {t('opencode.plugin.installFeishuBridge')}
                 </Button>
                 <Button
                   type="text"

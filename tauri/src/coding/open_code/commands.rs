@@ -462,6 +462,759 @@ const DEFAULT_FAVORITE_PLUGINS: &[&str] = &[
     "opencode-axonhub-tracing",
 ];
 
+const FEISHU_BRIDGE_PLUGIN_FILE: &str = "opencode-feishu-ws-bridge.mjs";
+const FEISHU_BRIDGE_SERVER_FILE: &str = "server.mjs";
+const FEISHU_BRIDGE_PKG_FILE: &str = "package.json";
+const FEISHU_BRIDGE_ENV_EXAMPLE_FILE: &str = ".env.example";
+const FEISHU_BRIDGE_README_FILE: &str = "README.md";
+
+const FEISHU_BRIDGE_PLUGIN_TEMPLATE: &str = r#"
+const DEFAULT_WS_URL = process.env.FEISHU_BRIDGE_WS_URL || "ws://127.0.0.1:17171/opencode";
+const RECONNECT_MS = 2000;
+const FORWARD_EVENT_TYPES = new Set([
+  "message.updated",
+  "permission.updated",
+  "session.idle",
+  "session.error",
+  "session.updated",
+]);
+
+let socket = null;
+let reconnectTimer = null;
+
+function connect() {
+  if (socket && (socket.readyState === 0 || socket.readyState === 1)) {
+    return;
+  }
+
+  socket = new WebSocket(DEFAULT_WS_URL);
+
+  socket.addEventListener("open", () => {
+    console.log("[feishu-bridge] connected", DEFAULT_WS_URL);
+    send({
+      type: "bridge.hello",
+      source: "opencode-plugin",
+      ts: Date.now(),
+    });
+  });
+
+  socket.addEventListener("close", () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+    }
+    reconnectTimer = setTimeout(connect, RECONNECT_MS);
+  });
+
+  socket.addEventListener("error", (error) => {
+    console.error("[feishu-bridge] websocket error", error);
+  });
+}
+
+function send(payload) {
+  if (!socket || socket.readyState !== 1) {
+    return;
+  }
+
+  try {
+    socket.send(JSON.stringify(payload));
+  } catch (error) {
+    console.error("[feishu-bridge] send error", error);
+  }
+}
+
+const feishuBridgePlugin = async function feishuBridgePlugin() {
+  connect();
+
+  return {
+    event: async ({ event }) => {
+      if (!event || !FORWARD_EVENT_TYPES.has(event.type)) {
+        return;
+      }
+
+      send({
+        type: "opencode.event",
+        event,
+        ts: Date.now(),
+      });
+    },
+  };
+};
+
+export default feishuBridgePlugin;
+export { feishuBridgePlugin };
+"#;
+
+const FEISHU_BRIDGE_SERVER_TEMPLATE: &str = r#"
+import * as lark from "@larksuiteoapi/node-sdk";
+import { WebSocketServer } from "ws";
+import { createOpencode } from "@opencode-ai/sdk";
+import { Surreal } from "surrealdb";
+
+const APP_ID = process.env.FEISHU_APP_ID || "";
+const APP_SECRET = process.env.FEISHU_APP_SECRET || "";
+const OPENCODE_BASE_URL = process.env.OPENCODE_SERVER_BASE_URL || "http://127.0.0.1:4096";
+const WS_HOST = process.env.LOCAL_WS_HOST || "127.0.0.1";
+const WS_PORT = Number(process.env.LOCAL_WS_PORT || 17171);
+const BOT_NAME = process.env.FEISHU_BOT_NAME || "OpenCode";
+const STREAM_UPDATE_INTERVAL_MS = Number(process.env.FEISHU_STREAM_UPDATE_INTERVAL_MS || 1200);
+
+const SURREALDB_URL = process.env.SURREALDB_URL || "";
+const SURREALDB_NAMESPACE = process.env.SURREALDB_NAMESPACE || "opencode_bridge";
+const SURREALDB_DATABASE = process.env.SURREALDB_DATABASE || "feishu";
+const SURREALDB_USER = process.env.SURREALDB_USER || "root";
+const SURREALDB_PASS = process.env.SURREALDB_PASS || "root";
+const SURREALDB_SESSION_TABLE = process.env.SURREALDB_SESSION_TABLE || "feishu_session";
+const SURREALDB_MESSAGE_TABLE = process.env.SURREALDB_MESSAGE_TABLE || "feishu_message";
+
+const ALLOWED_CHAT_IDS = new Set(
+  (process.env.FEISHU_ALLOWED_CHAT_IDS || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean),
+);
+
+if (!APP_ID || !APP_SECRET) {
+  console.error("Missing FEISHU_APP_ID or FEISHU_APP_SECRET");
+  process.exit(1);
+}
+
+const chatSessions = new Map(); // chatID -> sessionID
+const sessionChats = new Map(); // sessionID -> chatID
+const activeStreams = new Map(); // sessionID -> { chatID, messageID, text, updatedAt }
+
+const opencode = await createOpencode({ baseURL: OPENCODE_BASE_URL });
+const surreal = new Surreal();
+let surrealReady = false;
+
+const CARD_COLORS = {
+  thinking: "blue",
+  done: "green",
+  error: "red",
+};
+
+function shortId(id) {
+  if (!id) return "";
+  return String(id).slice(0, 8);
+}
+
+function normalizeText(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(/\r/g, "")
+    .replace(/\u0000/g, "")
+    .trim();
+}
+
+function clampText(text, maxLength = 3500) {
+  const normalized = normalizeText(text);
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}...`;
+}
+
+function deepCollectText(node, out) {
+  if (!node) return;
+  if (typeof node === "string") {
+    out.push(node);
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) deepCollectText(item, out);
+    return;
+  }
+  if (typeof node === "object") {
+    if (node.type === "text" && typeof node.text === "string") {
+      out.push(node.text);
+    }
+    if (typeof node.content === "string") out.push(node.content);
+    if (typeof node.delta === "string") out.push(node.delta);
+    if (typeof node.output === "string") out.push(node.output);
+    if (node.message) deepCollectText(node.message, out);
+    if (node.part) deepCollectText(node.part, out);
+    if (node.parts) deepCollectText(node.parts, out);
+    if (node.data) deepCollectText(node.data, out);
+    if (node.payload) deepCollectText(node.payload, out);
+  }
+}
+
+function extractEventText(event) {
+  const chunks = [];
+  deepCollectText(event, chunks);
+  return normalizeText(chunks.join("\n"));
+}
+
+function renderCard({ title, status, body, sessionID, note }) {
+  return {
+    config: { wide_screen_mode: true, enable_forward: true },
+    header: {
+      template: CARD_COLORS[status] || "blue",
+      title: { tag: "plain_text", content: title },
+    },
+    elements: [
+      {
+        tag: "div",
+        text: {
+          tag: "lark_md",
+          content: `**Session:** \`${shortId(sessionID)}\`${note ? `\n${note}` : ""}`,
+        },
+      },
+      { tag: "hr" },
+      {
+        tag: "div",
+        text: {
+          tag: "lark_md",
+          content: body || "(empty)",
+        },
+      },
+    ],
+  };
+}
+
+function toRecordId(prefix, value) {
+  const safe = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .slice(0, 120);
+  return `${prefix}:${safe || "unknown"}`;
+}
+
+async function initSurreal() {
+  if (!SURREALDB_URL) {
+    console.warn("[feishu-bridge] SURREALDB_URL is empty, persistence disabled");
+    return;
+  }
+  try {
+    await surreal.connect(SURREALDB_URL);
+    await surreal.signin({ username: SURREALDB_USER, password: SURREALDB_PASS });
+    await surreal.use({ namespace: SURREALDB_NAMESPACE, database: SURREALDB_DATABASE });
+    surrealReady = true;
+    console.log("[feishu-bridge] surrealdb connected");
+  } catch (error) {
+    surrealReady = false;
+    console.error("[feishu-bridge] surrealdb init failed, fallback to memory", error);
+  }
+}
+
+async function loadSessionFromDb(chatID) {
+  if (!surrealReady) return null;
+  try {
+    const record = await surreal.select(toRecordId(SURREALDB_SESSION_TABLE, chatID));
+    return record?.session_id || null;
+  } catch (error) {
+    console.error("[feishu-bridge] load session failed", error);
+    return null;
+  }
+}
+
+async function saveSessionToDb(chatID, sessionID) {
+  if (!surrealReady) return;
+  try {
+    await surreal.upsert(toRecordId(SURREALDB_SESSION_TABLE, chatID), {
+      chat_id: chatID,
+      session_id: sessionID,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[feishu-bridge] save session failed", error);
+  }
+}
+
+async function saveMessageToDb({ chatID, sessionID, role, content, messageID }) {
+  if (!surrealReady) return;
+  try {
+    await surreal.create(SURREALDB_MESSAGE_TABLE, {
+      chat_id: chatID,
+      session_id: sessionID,
+      role,
+      content: normalizeText(content),
+      message_id: messageID || null,
+      created_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[feishu-bridge] save message failed", error);
+  }
+}
+
+const wsServer = new WebSocketServer({
+  host: WS_HOST,
+  port: WS_PORT,
+  path: "/opencode",
+});
+
+wsServer.on("connection", (ws) => {
+  console.log("[feishu-bridge] local ws connected");
+
+  ws.on("message", async (buf) => {
+    try {
+      const payload = JSON.parse(buf.toString());
+      if (payload?.type !== "opencode.event") {
+        return;
+      }
+
+      const event = payload?.event || {};
+      const eventType = event?.type;
+      const sessionID = event?.sessionID || event?.session_id;
+      if (!eventType || !sessionID) {
+        return;
+      }
+
+      const streamState = activeStreams.get(sessionID);
+      if (!streamState) {
+        return;
+      }
+
+      if (eventType === "session.error") {
+        const errorText = extractEventText(event) || "session.error";
+        await patchCard(streamState.chatID, streamState.messageID, renderCard({
+          title: `${BOT_NAME} · Error`,
+          status: "error",
+          body: clampText(errorText, 3000),
+          sessionID,
+          note: "OpenCode session returned an error",
+        }));
+        await saveMessageToDb({
+          chatID: streamState.chatID,
+          sessionID,
+          role: "assistant_error",
+          content: errorText,
+          messageID: streamState.messageID,
+        });
+        return;
+      }
+
+      const streamText = extractEventText(event);
+      if (!streamText) {
+        return;
+      }
+
+      streamState.text = streamText;
+      const now = Date.now();
+      if (now - streamState.updatedAt < STREAM_UPDATE_INTERVAL_MS) {
+        return;
+      }
+      streamState.updatedAt = now;
+
+      await patchCard(streamState.chatID, streamState.messageID, renderCard({
+        title: `${BOT_NAME} · Streaming`,
+        status: "thinking",
+        body: clampText(streamState.text, 3000),
+        sessionID,
+        note: `event: ${eventType}`,
+      }));
+    } catch (error) {
+      console.error("Failed to handle local ws message", error);
+    }
+  });
+});
+
+console.log(`[feishu-bridge] ws listening at ws://${WS_HOST}:${WS_PORT}/opencode`);
+
+const larkClient = new lark.Client({
+  appId: APP_ID,
+  appSecret: APP_SECRET,
+});
+
+async function sendCard(chatID, card) {
+  const response = await larkClient.im.message.create({
+    params: { receive_id_type: "chat_id" },
+    data: {
+      receive_id: chatID,
+      msg_type: "interactive",
+      content: JSON.stringify(card),
+    },
+  });
+  return response?.data?.message_id || response?.data?.messageId || "";
+}
+
+async function patchCard(chatID, messageID, card) {
+  if (!messageID) {
+    return;
+  }
+  try {
+    await larkClient.im.message.patch({
+      path: {
+        message_id: messageID,
+      },
+      data: {
+        content: JSON.stringify(card),
+      },
+    });
+  } catch (error) {
+    console.error("[feishu-bridge] patch card failed", error);
+    await sendText(chatID, `[${BOT_NAME}] card update failed, fallback to text`);
+    await sendText(chatID, clampText(card?.elements?.[2]?.text?.content || "(empty)", 2000));
+  }
+}
+
+async function sendText(chatID, text) {
+  await larkClient.im.message.create({
+    params: { receive_id_type: "chat_id" },
+    data: {
+      receive_id: chatID,
+      msg_type: "text",
+      content: JSON.stringify({ text }),
+    },
+  });
+}
+
+function getMessageText(content) {
+  if (!content) {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(content);
+    return (parsed?.text || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function summarizePromptResult(result) {
+  if (!result) {
+    return "(empty response)";
+  }
+  if (typeof result === "string") {
+    return result;
+  }
+  if (result?.message?.parts?.length) {
+    return result.message.parts
+      .filter((part) => part?.type === "text")
+      .map((part) => part.text || "")
+      .join("\n")
+      .trim();
+  }
+  if (result?.parts?.length) {
+    return result.parts
+      .filter((part) => part?.type === "text")
+      .map((part) => part.text || "")
+      .join("\n")
+      .trim();
+  }
+  return JSON.stringify(result);
+}
+
+async function ensureSession(chatID) {
+  const current = chatSessions.get(chatID);
+  if (current) {
+    return current;
+  }
+
+  const dbSession = await loadSessionFromDb(chatID);
+  if (dbSession) {
+    chatSessions.set(chatID, dbSession);
+    sessionChats.set(dbSession, chatID);
+    return dbSession;
+  }
+
+  const created = await opencode.session.create({
+    title: `Feishu-${chatID}`,
+  });
+
+  const sessionID = created?.sessionID || created?.id;
+  if (!sessionID) {
+    throw new Error("Failed to create OpenCode session");
+  }
+
+  chatSessions.set(chatID, sessionID);
+  sessionChats.set(sessionID, chatID);
+  await saveSessionToDb(chatID, sessionID);
+  return sessionID;
+}
+
+async function handleChatCommand(chatID, text) {
+  const command = text.trim();
+  if (!command) {
+    return;
+  }
+
+  if (command === "/help") {
+    await sendText(
+      chatID,
+      [
+        `${BOT_NAME} commands:`,
+        "/help - show help",
+        "/new - create a new OpenCode session",
+        "/status - show current session id",
+        "/ask <prompt> - send prompt to OpenCode",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (command === "/new") {
+    chatSessions.delete(chatID);
+    const sessionID = await ensureSession(chatID);
+    await saveSessionToDb(chatID, sessionID);
+    await sendText(chatID, `[${BOT_NAME}] created a new session: ${sessionID}`);
+    return;
+  }
+
+  if (command === "/status") {
+    const sessionID = await ensureSession(chatID);
+    await sendText(chatID, `[${BOT_NAME}] current session: ${sessionID}`);
+    return;
+  }
+
+  const prompt = command.startsWith("/ask")
+    ? command.slice(4).trim()
+    : command;
+
+  if (!prompt) {
+    await sendText(chatID, `[${BOT_NAME}] please provide a prompt, e.g. /ask summarize today's code changes`);
+    return;
+  }
+
+  const sessionID = await ensureSession(chatID);
+  await saveMessageToDb({
+    chatID,
+    sessionID,
+    role: "user",
+    content: prompt,
+  });
+
+  const initialCard = renderCard({
+    title: `${BOT_NAME} · Streaming`,
+    status: "thinking",
+    body: "OpenCode is thinking...",
+    sessionID,
+    note: "Starting stream...",
+  });
+  const messageID = await sendCard(chatID, initialCard);
+  activeStreams.set(sessionID, {
+    chatID,
+    messageID,
+    text: "",
+    updatedAt: 0,
+  });
+
+  const response = await opencode.session.prompt(sessionID, {
+    parts: [{ type: "text", text: prompt }],
+  });
+
+  const summary = summarizePromptResult(response) || "(empty response)";
+  const streamState = activeStreams.get(sessionID);
+  const finalText = streamState?.text || summary;
+
+  const finalCard = renderCard({
+    title: `${BOT_NAME} · Completed`,
+    status: "done",
+    body: clampText(finalText, 3000),
+    sessionID,
+    note: "Done",
+  });
+
+  if (streamState?.messageID) {
+    await patchCard(chatID, streamState.messageID, finalCard);
+  } else {
+    await sendCard(chatID, finalCard);
+  }
+
+  await saveMessageToDb({
+    chatID,
+    sessionID,
+    role: "assistant",
+    content: finalText,
+    messageID: streamState?.messageID || null,
+  });
+
+  activeStreams.delete(sessionID);
+}
+
+const eventDispatcher = new lark.ws.EventDispatcher({}).register({
+  "im.message.receive_v1": async (data) => {
+    const chatID = data?.event?.message?.chat_id;
+    if (!chatID) {
+      return;
+    }
+
+    if (ALLOWED_CHAT_IDS.size > 0 && !ALLOWED_CHAT_IDS.has(chatID)) {
+      return;
+    }
+
+    const text = getMessageText(data?.event?.message?.content);
+    if (!text) {
+      return;
+    }
+
+    try {
+      await handleChatCommand(chatID, text);
+    } catch (error) {
+      console.error("Failed to handle command", error);
+      await sendText(chatID, `[${BOT_NAME}] failed: ${error?.message || String(error)}`);
+    }
+  },
+});
+
+const wsClient = new lark.ws.Client({
+  appId: APP_ID,
+  appSecret: APP_SECRET,
+  eventDispatcher,
+});
+
+await initSurreal();
+await wsClient.start();
+console.log("[feishu-bridge] feishu ws started");
+"#;
+
+const FEISHU_BRIDGE_PACKAGE_TEMPLATE: &str = r#"
+{
+  "name": "opencode-feishu-ws-bridge-local",
+  "private": true,
+  "type": "module",
+  "version": "0.2.0",
+  "scripts": {
+    "start": "node ./server.mjs"
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.54.0",
+    "@opencode-ai/sdk": "latest",
+    "surrealdb": "^1.3.2",
+    "ws": "^8.18.0"
+  }
+}
+"#;
+
+const FEISHU_BRIDGE_ENV_EXAMPLE_TEMPLATE: &str = r#"
+FEISHU_APP_ID=
+FEISHU_APP_SECRET=
+FEISHU_BOT_NAME=OpenCode
+FEISHU_ALLOWED_CHAT_IDS=
+OPENCODE_SERVER_BASE_URL=http://127.0.0.1:4096
+LOCAL_WS_HOST=127.0.0.1
+LOCAL_WS_PORT=17171
+FEISHU_STREAM_UPDATE_INTERVAL_MS=1200
+SURREALDB_URL=ws://127.0.0.1:8000/rpc
+SURREALDB_NAMESPACE=opencode_bridge
+SURREALDB_DATABASE=feishu
+SURREALDB_USER=root
+SURREALDB_PASS=root
+SURREALDB_SESSION_TABLE=feishu_session
+SURREALDB_MESSAGE_TABLE=feishu_message
+"#;
+
+const FEISHU_BRIDGE_README_TEMPLATE: &str = r#"
+# OpenCode Feishu WS Bridge (Local)
+
+This folder is generated by AI Toolbox.
+
+## Features
+
+- Stream OpenCode generation updates to Feishu interactive card
+- Persist chat-session mapping to SurrealDB
+- Persist user and assistant messages to SurrealDB
+
+## Files
+
+- `server.mjs`: Feishu long-connection bot + OpenCode bridge service
+- `.env.example`: required environment variables
+- `package.json`: dependencies and start script
+
+## Start
+
+1. Copy `.env.example` to `.env` and fill Feishu app credentials.
+2. Prepare SurrealDB (recommended):
+
+   ```bash
+   surreal start --user root --pass root memory
+   ```
+
+3. Start OpenCode server:
+
+   ```bash
+   opencode serve --hostname 127.0.0.1 --port 4096
+   ```
+
+4. Install dependencies and run bridge:
+
+   ```bash
+   cd ~/.config/opencode/feishu-ws-bridge
+   npm install
+   node --env-file=.env ./server.mjs
+   ```
+
+5. Open Feishu chat with bot and send commands:
+
+   - `/help`
+   - `/new`
+   - `/status`
+   - `/ask your prompt`
+
+## Local plugin
+
+Plugin file path:
+
+- `~/.config/opencode/plugins/opencode-feishu-ws-bridge.mjs`
+
+OpenCode auto-loads local plugins from this directory.
+"#;
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeishuBridgeInstallResult {
+    pub opencode_config_dir: String,
+    pub plugin_file: String,
+    pub bridge_dir: String,
+    pub start_command: String,
+}
+
+#[tauri::command]
+pub async fn install_opencode_feishu_ws_bridge(
+    state: tauri::State<'_, DbState>,
+) -> Result<FeishuBridgeInstallResult, String> {
+    let config_path = get_opencode_config_path(state).await?;
+    let config_file_path = Path::new(&config_path);
+    let config_dir = config_file_path
+        .parent()
+        .ok_or_else(|| "Failed to resolve OpenCode config directory".to_string())?;
+
+    fs::create_dir_all(config_dir)
+        .map_err(|e| format!("Failed to create OpenCode config directory: {}", e))?;
+
+    let plugin_dir = config_dir.join("plugins");
+    fs::create_dir_all(&plugin_dir)
+        .map_err(|e| format!("Failed to create plugin directory: {}", e))?;
+
+    let bridge_dir = config_dir.join("feishu-ws-bridge");
+    fs::create_dir_all(&bridge_dir)
+        .map_err(|e| format!("Failed to create bridge directory: {}", e))?;
+
+    let plugin_file = plugin_dir.join(FEISHU_BRIDGE_PLUGIN_FILE);
+    fs::write(&plugin_file, FEISHU_BRIDGE_PLUGIN_TEMPLATE.trim_start())
+        .map_err(|e| format!("Failed to write plugin file: {}", e))?;
+
+    fs::write(
+        bridge_dir.join(FEISHU_BRIDGE_SERVER_FILE),
+        FEISHU_BRIDGE_SERVER_TEMPLATE.trim_start(),
+    )
+    .map_err(|e| format!("Failed to write bridge server file: {}", e))?;
+
+    fs::write(
+        bridge_dir.join(FEISHU_BRIDGE_PKG_FILE),
+        FEISHU_BRIDGE_PACKAGE_TEMPLATE.trim_start(),
+    )
+    .map_err(|e| format!("Failed to write package.json: {}", e))?;
+
+    fs::write(
+        bridge_dir.join(FEISHU_BRIDGE_ENV_EXAMPLE_FILE),
+        FEISHU_BRIDGE_ENV_EXAMPLE_TEMPLATE.trim_start(),
+    )
+    .map_err(|e| format!("Failed to write .env.example: {}", e))?;
+
+    fs::write(
+        bridge_dir.join(FEISHU_BRIDGE_README_FILE),
+        FEISHU_BRIDGE_README_TEMPLATE.trim_start(),
+    )
+    .map_err(|e| format!("Failed to write bridge README: {}", e))?;
+
+    Ok(FeishuBridgeInstallResult {
+        opencode_config_dir: config_dir.to_string_lossy().to_string(),
+        plugin_file: plugin_file.to_string_lossy().to_string(),
+        bridge_dir: bridge_dir.to_string_lossy().to_string(),
+        start_command: "npm install && node --env-file=.env ./server.mjs".to_string(),
+    })
+}
+
 /// Initialize default favorite plugins if database is empty
 async fn init_default_favorite_plugins(
     db: &surrealdb::Surreal<surrealdb::engine::local::Db>,

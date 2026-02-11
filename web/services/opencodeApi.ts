@@ -275,6 +275,13 @@ export interface OpenCodeFavoritePlugin {
   createdAt: string;
 }
 
+export interface FeishuBridgeInstallResult {
+  opencodeConfigDir: string;
+  pluginFile: string;
+  bridgeDir: string;
+  startCommand: string;
+}
+
 /**
  * List all favorite plugins
  * Auto-initializes default plugins if database is empty
@@ -296,6 +303,10 @@ export const addFavoritePlugin = async (pluginName: string): Promise<OpenCodeFav
  */
 export const deleteFavoritePlugin = async (pluginName: string): Promise<void> => {
   await invoke('delete_opencode_favorite_plugin', { pluginName });
+};
+
+export const installOpenCodeFeishuWsBridge = async (): Promise<FeishuBridgeInstallResult> => {
+  return await invoke<FeishuBridgeInstallResult>('install_opencode_feishu_ws_bridge');
 };
 
 // ============================================================================
